@@ -206,6 +206,8 @@ async def signup(request: Request, body: SignupRequest):
         "username": body.username,
         "full_name": body.full_name,
         "role": body.role,
+        "email": body.email,
+        "phone": body.phone,
         "password_hash": pwd_context.hash(body.password),
         "created_at": utcnow(),
     }
