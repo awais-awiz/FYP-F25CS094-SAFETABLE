@@ -26,6 +26,8 @@ const GLBModelViewer = ({
         camera-controls
         auto-rotate={autoRotate ? "true" : undefined}
         shadow-intensity="1"
+        environment-image="neutral"
+        exposure="1.2"
         style={{ width: "100%", height: "100%", backgroundColor: "transparent" }}
         alt="3D model of food item"
       >
