@@ -6,6 +6,7 @@ import {
   Center,
   ContactShadows,
   Html,
+  Environment,
 } from "@react-three/drei";
 import { Suspense, useRef, useState, useEffect, useCallback, useTransition } from "react";
 import { ChevronLeft, ChevronRight, Box, Play, Pause, Sparkles } from "lucide-react";
@@ -287,35 +288,65 @@ const MenuScene = () => {
         </div>
       )}
 
-      {/* 3D Model or Fallback */}
-      <div className="absolute inset-0 z-0 flex items-center justify-center">
-        {modelUrl ? (
-          <GLBModelViewer 
-            modelUrl={modelUrl} 
-            height="100%" 
-            autoRotate={true} 
-            showControls={false} 
-            className="w-full h-full scale-[1.2]"
-          />
-        ) : (
-          <Canvas
-            shadows
-            dpr={[1, 1.5]}
-            onCreated={handleCreated}
-            gl={{ antialias: true, powerPreference: "default" }}
-          >
-            <ContextLossHandler />
-            <PerspectiveCamera makeDefault position={[0, 2.5, 5]} fov={45} />
-            <OrbitControls enablePan={false} autoRotate={false} />
-            <ambientLight intensity={1.2} />
-            <directionalLight position={[5, 10, 5]} intensity={1.5} />
-            <Suspense fallback={<CanvasLoader />}>
-              <PrimitiveDish position={[0, 0, 0]} />
-            </Suspense>
-            <ContactShadows position={[0, -0.6, 0]} opacity={0.6} scale={15} blur={2.5} far={4} color="#000000" />
-          </Canvas>
-        )}
-      </div>
+      {/* Three.js Canvas */}
+      <Canvas
+        shadows
+        dpr={[1, 1.5]}
+        onCreated={handleCreated}
+        gl={{
+          antialias: true,
+          powerPreference: "default",
+          failIfMajorPerformanceCaveat: false,
+        }}
+      >
+        <ContextLossHandler />
+        <PerspectiveCamera makeDefault position={[0, 2.5, 5]} fov={45} />
+        <OrbitControls
+          enablePan={false}
+          minDistance={2.5}
+          maxDistance={8}
+          minPolarAngle={Math.PI / 4}
+          maxPolarAngle={Math.PI / 2 + 0.1}
+          autoRotate={false} 
+        />
+
+        {/* Natural Environment Lighting (matches model-viewer neutral map) */}
+        <Environment preset="city" />
+        
+        {/* Fill lighting to prevent dark shadows */}
+        <ambientLight intensity={0.6} />
+        <directionalLight
+          position={[5, 10, 5]}
+          intensity={1.0}
+          castShadow
+          shadow-mapSize-width={1024}
+          shadow-mapSize-height={1024}
+          shadow-bias={-0.0001}
+        />
+        <directionalLight
+          position={[-5, 5, -5]}
+          intensity={0.4}
+        />
+
+        {/* 3D Model or Fallback */}
+        <Suspense fallback={<CanvasLoader />}>
+          {modelUrl ? (
+            <GLBDish url={modelUrl} scale={1.2} />
+          ) : (
+            <PrimitiveDish position={[0, 0, 0]} />
+          )}
+        </Suspense>
+
+        {/* Contact shadows for realistic grounding */}
+        <ContactShadows
+          position={[0, -0.6, 0]}
+          opacity={0.6}
+          scale={15}
+          blur={2.5}
+          far={4}
+          color="#000000"
+        />
+      </Canvas>
 
       {/* Cinematic Vignette Overlay */}
       <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_100px_rgba(0,0,0,0.2)] rounded-3xl" />
