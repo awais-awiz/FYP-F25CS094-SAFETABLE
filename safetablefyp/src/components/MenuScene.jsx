@@ -6,7 +6,6 @@ import {
   Center,
   ContactShadows,
   Html,
-  Environment,
 } from "@react-three/drei";
 import { Suspense, useRef, useState, useEffect, useCallback, useTransition } from "react";
 import { ChevronLeft, ChevronRight, Box, Play, Pause, Sparkles } from "lucide-react";
@@ -319,7 +318,6 @@ const MenuScene = () => {
             autoRotate={false} 
           />
 
-<<<<<<< HEAD
           {/* Cinematic Lighting */}
           <ambientLight intensity={1.2} />
           <directionalLight
@@ -338,25 +336,6 @@ const MenuScene = () => {
             angle={Math.PI / 4}
             penumbra={1}
           />
-=======
-        {/* Natural Environment Lighting (matches model-viewer neutral map) */}
-        <Environment preset="city" />
-        
-        {/* Fill lighting to prevent dark shadows (slightly dimmed) */}
-        <ambientLight intensity={0.4} />
-        <directionalLight
-          position={[5, 10, 5]}
-          intensity={0.8}
-          castShadow
-          shadow-mapSize-width={1024}
-          shadow-mapSize-height={1024}
-          shadow-bias={-0.0001}
-        />
-        <directionalLight
-          position={[-5, 5, -5]}
-          intensity={0.2}
-        />
->>>>>>> af85066353d8f3ac62e929c6dc389cd9e3929a2a
 
           <PrimitiveDish position={[0, 0, 0]} />
 
@@ -372,9 +351,9 @@ const MenuScene = () => {
         </Canvas>
       )}
 
-      {/* Cinematic Vignette Overlay */}
-      <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_100px_rgba(0,0,0,0.2)] rounded-3xl" />
-      <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-background/80 via-transparent to-transparent" />
+      {/* Cinematic Vignette Overlay (Lightened so it doesn't ruin the 3D model textures) */}
+      <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_40px_rgba(0,0,0,0.1)] rounded-3xl" />
+      <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-background/40 via-transparent to-transparent" />
     </div>
   );
 };
