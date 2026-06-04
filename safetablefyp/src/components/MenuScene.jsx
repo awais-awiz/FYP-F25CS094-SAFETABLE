@@ -115,7 +115,6 @@ const MenuScene = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isAutoPlaying, setIsAutoPlaying] = useState(false); // Disabled by default to prevent infinite loading loop on mobile
-  const [isPending, startTransition] = useTransition();
 
   // Resolve the model URL
   const resolveUrl = (url) => {
@@ -149,9 +148,7 @@ const MenuScene = () => {
   useEffect(() => {
     if (!isAutoPlaying || models.length <= 1) return;
     const interval = setInterval(() => {
-      startTransition(() => {
-        setCurrentIndex((i) => (i + 1) % models.length);
-      });
+      setCurrentIndex((i) => (i + 1) % models.length);
     }, 4500); // Change slide every 4.5 seconds
     return () => clearInterval(interval);
   }, [models.length, isAutoPlaying]);
@@ -160,15 +157,11 @@ const MenuScene = () => {
 
   const handlePrev = () => {
     setIsAutoPlaying(false);
-    startTransition(() => {
-      setCurrentIndex((i) => (i - 1 + models.length) % models.length);
-    });
+    setCurrentIndex((i) => (i - 1 + models.length) % models.length);
   };
   const handleNext = () => {
     setIsAutoPlaying(false);
-    startTransition(() => {
-      setCurrentIndex((i) => (i + 1) % models.length);
-    });
+    setCurrentIndex((i) => (i + 1) % models.length);
   };
 
   const modelUrl = currentModel ? resolveUrl(currentModel.model_url) : null;
@@ -289,7 +282,7 @@ const MenuScene = () => {
 
       {/* 3D Model Viewer or Fallback */}
       {modelUrl ? (
-        <div className="w-full h-full absolute inset-0">
+        <div className="w-full h-full absolute inset-0 scale-[0.85] origin-center">
           <GLBModelViewer 
             modelUrl={modelUrl} 
             height="100%" 
