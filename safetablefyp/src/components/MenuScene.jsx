@@ -356,3 +356,4 @@ const MenuScene = () => {
 };
 
 export default MenuScene;
+
