@@ -3,8 +3,24 @@ import { Button } from "@/components/ui/button";
 import { Mic, Menu, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import heroImage from "@/assets/hero-dining.jpg";
+import { useCustomerSession } from "@/hooks/useCustomerSession";
+import { useToast } from "@/hooks/use-toast";
 
 const Hero = () => {
+  const { start, loading, hasTicket } = useCustomerSession();
+  const { toast } = useToast();
+
+  const handleStartSession = async () => {
+    const result = await start("en");
+    if (!result?.success) {
+      toast({
+        title: "Unable to start session",
+        description: result?.message || "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Animated Background */}
@@ -72,12 +88,17 @@ const Hero = () => {
                   Explore 3D Menu
                 </Button>
               </Link>
-              <Link to="/voice-order">
-                <Button variant="outline" size="xl" className="group">
+              {!hasTicket ? (
+                <Button variant="outline" size="xl" className="group" onClick={handleStartSession} disabled={loading}>
                   <Mic className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                  Voice Order
+                  {loading ? "Starting..." : "Start Voice Session"}
                 </Button>
-              </Link>
+              ) : (
+                <Button variant="outline" size="xl" className="group border-green-500/50 text-green-500 hover:bg-green-500/10">
+                  <Sparkles className="w-5 h-5 animate-pulse" />
+                  Session Active
+                </Button>
+              )}
             </div>
 
             {/* Stats */}

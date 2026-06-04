@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import MenuScene from "@/components/MenuScene";
 import GLBModelViewer from "@/components/GLBModelViewer";
+import { QRCodeSVG } from "qrcode.react";
 import dishImage from "@/assets/dish-steak.jpg";
 import { useCart } from "@/hooks/useCart";
 import { useOrders } from "@/hooks/useOrders";
@@ -486,14 +487,32 @@ const MenuPage = () => {
         onOpenChange={(open) => !open && setPreview3dItem(null)}
       >
         <DialogContent className="glass-morphism border-2 border-primary/30 max-w-2xl w-[95vw]">
-          <DialogHeader>
-            <DialogTitle className="text-2xl text-gradient-primary flex items-center gap-2">
-              <Box className="w-6 h-6" />
-              {preview3dItem?.name} — 3D View
-            </DialogTitle>
-            <DialogDescription>
-              Interact with the 3D model. Drag to rotate, scroll to zoom.
-            </DialogDescription>
+          <DialogHeader className="flex flex-row items-start justify-between pr-8">
+            <div>
+              <DialogTitle className="text-2xl text-gradient-primary flex items-center gap-2">
+                <Box className="w-6 h-6" />
+                {preview3dItem?.name} — 3D View
+              </DialogTitle>
+              <DialogDescription className="mt-2">
+                Interact with the 3D model. Drag to rotate, scroll to zoom.
+              </DialogDescription>
+            </div>
+            {preview3dItem?.model_3d_url && (
+              <div className="hidden md:flex items-center gap-3 bg-white/5 pr-4 pl-2 py-2 rounded-2xl border border-white/10 mt-[-10px] mr-[-10px]">
+                <div className="bg-white p-1.5 rounded-xl shadow-lg">
+                  <QRCodeSVG 
+                    value={`${window.location.origin}/ar?model=${encodeURIComponent(preview3dItem.model_3d_url)}`} 
+                    size={48} 
+                    level="L"
+                    includeMargin={false}
+                  />
+                </div>
+                <div className="flex flex-col max-w-[120px] text-left">
+                  <span className="text-[10px] font-bold text-primary uppercase tracking-widest leading-tight">View on Phone</span>
+                  <span className="text-[9px] text-muted-foreground leading-tight mt-0.5">Scan to open in AR</span>
+                </div>
+              </div>
+            )}
           </DialogHeader>
           {preview3dItem?.model_3d_url && (
             <GLBModelViewer

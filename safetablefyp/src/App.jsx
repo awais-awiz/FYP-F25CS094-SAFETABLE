@@ -7,7 +7,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import MenuPage from "./pages/MenuPage";
 import OrdersPage from "./pages/OrdersPage";
-import VoiceOrderPage from "./pages/VoiceOrderPage";
 import AIPersonalizationPage from "./pages/AIPersonalizationPage";
 import QRPaymentsPage from "./pages/QRPaymentsPage";
 import LanguagesPage from "./pages/LanguagesPage";
@@ -17,6 +16,8 @@ import TermsPage from "./pages/TermsPage";
 import NotFound from "./pages/NotFound";
 import InstantServicePage from "./pages/InstantServicePage";
 import KitchenStatusPage from "./pages/KitchenStatusPage";
+import ARViewerPage from "./pages/ARViewerPage";
+import CustomerLayout from "./layouts/CustomerLayout";
 import AdminLayout from "./layouts/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import KitchenTrackPage from "./pages/admin/KitchenTrackPage";
@@ -66,23 +67,24 @@ const App = () => (
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Bootstrap>
           <Routes>
-            {/* Public — landing + auth */}
-            <Route path="/" element={<Index />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/signup" element={<SignupPage />} />
-            <Route path="/contact" element={<ContactPage />} />
-            <Route path="/privacy" element={<PrivacyPage />} />
-            <Route path="/terms" element={<TermsPage />} />
-
-            {/* Customer-facing */}
-            <Route path="/menu" element={<MenuPage />} />
-            <Route path="/orders" element={<OrdersPage />} />
-            <Route path="/voice-order" element={<VoiceOrderPage />} />
-            <Route path="/ai-personalization" element={<AIPersonalizationPage />} />
-            <Route path="/qr-payments" element={<QRPaymentsPage />} />
-            <Route path="/languages" element={<LanguagesPage />} />
-            <Route path="/instant-service" element={<InstantServicePage />} />
-            <Route path="/kitchen-status" element={<KitchenStatusPage />} />
+            {/* Customer-facing & Public (Wrapped in Global Voice Assistant) */}
+            <Route element={<CustomerLayout />}>
+              <Route path="/" element={<Index />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/signup" element={<SignupPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              
+              <Route path="/menu" element={<MenuPage />} />
+              <Route path="/orders" element={<OrdersPage />} />
+              <Route path="/ai-personalization" element={<AIPersonalizationPage />} />
+              <Route path="/qr-payments" element={<QRPaymentsPage />} />
+              <Route path="/languages" element={<LanguagesPage />} />
+              <Route path="/instant-service" element={<InstantServicePage />} />
+              <Route path="/kitchen-status" element={<KitchenStatusPage />} />
+              <Route path="/ar" element={<ARViewerPage />} />
+            </Route>
 
             {/* Kitchen */}
             <Route
