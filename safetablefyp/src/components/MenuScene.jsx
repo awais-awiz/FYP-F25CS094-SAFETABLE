@@ -313,11 +313,11 @@ const MenuScene = () => {
         {/* Natural Environment Lighting (matches model-viewer neutral map) */}
         <Environment preset="city" />
         
-        {/* Fill lighting to prevent dark shadows */}
-        <ambientLight intensity={0.6} />
+        {/* Fill lighting to prevent dark shadows (slightly dimmed) */}
+        <ambientLight intensity={0.4} />
         <directionalLight
           position={[5, 10, 5]}
-          intensity={1.0}
+          intensity={0.8}
           castShadow
           shadow-mapSize-width={1024}
           shadow-mapSize-height={1024}
@@ -325,7 +325,7 @@ const MenuScene = () => {
         />
         <directionalLight
           position={[-5, 5, -5]}
-          intensity={0.4}
+          intensity={0.2}
         />
 
         {/* 3D Model or Fallback */}
@@ -356,4 +356,3 @@ const MenuScene = () => {
 };
 
 export default MenuScene;
-
