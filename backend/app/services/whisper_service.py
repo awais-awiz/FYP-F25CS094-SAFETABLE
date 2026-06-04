@@ -1,4 +1,4 @@
-﻿"""
+"""
 Speech-to-Text Service.
 Uses AssemblyAI when configured, otherwise falls back to Groq Whisper.
 """
@@ -13,7 +13,7 @@ def _guess_content_type(filename: str) -> str:
     return content_type or "application/octet-stream"
 
 
-async def _transcribe_with_assemblyai(audio_bytes: bytes) -> dict:
+async def _transcribe_with_assemblyai(audio_bytes: bytes, language: str = None) -> dict:
     api_key = getattr(settings, "ASSEMBLYAI_API_KEY", "")
     if not api_key:
         return {"text": "", "success": False, "error": "Missing ASSEMBLYAI_API_KEY"}
@@ -23,10 +23,14 @@ async def _transcribe_with_assemblyai(audio_bytes: bytes) -> dict:
         ur = await client.post("https://api.assemblyai.com/v2/upload", headers=headers, data=audio_bytes)
         ur.raise_for_status()
 
+        json_data = {"audio_url": ur.json()["upload_url"]}
+        if language:
+            json_data["language_code"] = language
+
         tr = await client.post(
             "https://api.assemblyai.com/v2/transcript",
             headers=headers,
-            json={"audio_url": ur.json()["upload_url"]},
+            json=json_data,
         )
         tr.raise_for_status()
 
@@ -47,7 +51,7 @@ async def _transcribe_with_assemblyai(audio_bytes: bytes) -> dict:
             await asyncio.sleep(1)
 
 
-async def _transcribe_with_groq(audio_bytes: bytes, filename: str) -> dict:
+async def _transcribe_with_groq(audio_bytes: bytes, filename: str, language: str = None) -> dict:
     if not settings.GROQ_API_KEY:
         return {"text": "", "success": False, "error": "Missing GROQ_API_KEY"}
 
@@ -56,6 +60,8 @@ async def _transcribe_with_groq(audio_bytes: bytes, filename: str) -> dict:
         "file": (filename or "audio.ogg", audio_bytes, _guess_content_type(filename or "audio.ogg"))
     }
     data = {"model": settings.GROQ_WHISPER_MODEL}
+    if language:
+        data["language"] = language
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(
@@ -69,17 +75,17 @@ async def _transcribe_with_groq(audio_bytes: bytes, filename: str) -> dict:
         text = payload.get("text", "")
         return {
             "text": text,
-            "language": payload.get("language", "en"),
+            "language": payload.get("language", language or "en"),
             "success": bool(text),
         }
 
 
-async def transcribe_audio(audio_bytes: bytes, filename: str = "audio.webm") -> dict:
+async def transcribe_audio(audio_bytes: bytes, filename: str = "audio.webm", language: str = None) -> dict:
     try:
         if getattr(settings, "ASSEMBLYAI_API_KEY", ""):
-            return await _transcribe_with_assemblyai(audio_bytes)
+            return await _transcribe_with_assemblyai(audio_bytes, language)
         if getattr(settings, "GROQ_API_KEY", ""):
-            return await _transcribe_with_groq(audio_bytes, filename)
+            return await _transcribe_with_groq(audio_bytes, filename, language)
         return {"text": "", "success": False, "error": "No STT key configured"}
     except Exception as e:
         return {"text": "", "success": False, "error": str(e)}

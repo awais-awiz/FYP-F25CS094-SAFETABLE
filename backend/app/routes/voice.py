@@ -47,7 +47,7 @@ async def voice_order(
             )
         
         if audio_bytes:
-            stt_result = await transcribe_audio(audio_bytes, audio.filename)
+            stt_result = await transcribe_audio(audio_bytes, audio.filename, language)
             if stt_result.get("success"):
                 final_transcript = stt_result.get("text", "")
             else:
