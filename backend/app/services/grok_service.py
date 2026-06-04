@@ -61,6 +61,15 @@ def _parse_json_payload(content: str) -> Optional[Dict[str, Any]]:
 async def _call_groq(messages: List[Dict[str, str]], temperature: float, max_tokens: int) -> str:
     if not settings.GROQ_API_KEY:
         return ""
+        
+    payload = {
+        "model": settings.GROQ_MODEL,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "response_format": {"type": "json_object"},
+    }
+    
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
             settings.GROQ_API_URL,
@@ -68,13 +77,7 @@ async def _call_groq(messages: List[Dict[str, str]], temperature: float, max_tok
                 "Authorization": f"Bearer {settings.GROQ_API_KEY}",
                 "Content-Type": "application/json",
             },
-            json={
-                "model": settings.GROQ_MODEL,
-                "messages": messages,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-                "response_format": {"type": "json_object"},
-            },
+            json=payload,
         )
         response.raise_for_status()
         return response.json()["choices"][0]["message"]["content"]
@@ -137,7 +140,7 @@ async def process_voice_order(
 
     menu_text = "\n".join(
         f"- menu_id={m['menu_id']} | {m['name']} (Rs. {int(m['price'])}) "
-        f"[{'AVAILABLE' if m['available'] else 'UNAVAILABLE'}]"
+        f"[{'AVAILABLE' if m['available'] else 'UNAVAILABLE'}] | has_3d_model: True"
         for m in menu_items
     )
 
@@ -149,23 +152,63 @@ async def process_voice_order(
     }
     target_language = lang_names.get(language, "English")
 
-    system_prompt = (
-        "You are a friendly, intelligent restaurant waiter and ordering assistant.\n"
-        "Output a single JSON object with this schema:\n"
-        '{"response_text": str, "should_place_order": bool, '
-        '"extracted_items": [{"menu_id": str, "quantity": int}]}\n'
-        "RULES:\n"
-        "1. Use ONLY menu_id values from the MENU below.\n"
-        "2. IMPORTANT: Do NOT allow ordering of UNAVAILABLE items. If the user asks for an UNAVAILABLE item, apologize and refuse to add it to the order.\n"
-        f"3. Max quantity {MAX_QTY_PER_LINE} per item. Must be an integer.\n"
-        f"3. IMPORTANT: You MUST write the value of `response_text` entirely in {target_language}. Be conversational.\n"
-        "4. CRITICAL: DO NOT translate the JSON keys. Keep them EXACTLY as: response_text, should_place_order, extracted_items, menu_id, quantity.\n"
-        "5. CRITICAL: `should_place_order` MUST be the English JSON boolean `true` or `false`.\n"
-        "6. CONTEXT AWARENESS & SHOPPING CART: You must remember ALL items the user has requested throughout the chat history. If the user confirms the order, set `should_place_order` to true and you MUST include EVERY SINGLE ITEM from the entire conversation in the `extracted_items` array.\n"
-        "7. PHONETIC LENIENCY: Users may misspell items, use phonetics, or transliterations (e.g. Roman Urdu or Urdu like 'مارگری ڈھا بیزا' for Margherita Pizza). ALWAYS intelligently map their intent to the closest available menu item. Do NOT be overly strict.\n"
-        "8. CONVERSATIONAL TONE: DO NOT robotically ask 'Is your order completed?'. Instead, naturally confirm what you added and ask if they would like anything else (e.g., 'I have added the Caramel Pudding. What else can I get for you?'). Wait for the user to explicitly say they are done before placing the order.\n"
-        f"MENU:\n{menu_text}"
-    )
+    system_prompt = f"""You are the "SafeTable AI Connoisseur," a fully autonomous virtual assistant and UI Controller for a modern fusion restaurant. You do not just talk to the customer; you control their digital table interface. 
+
+You listen to the customer's intent, speak back to them, and issue JSON commands to navigate the application, trigger API calls, and manipulate the UI on their behalf.
+
+### PERSONALITY & TONE (CRITICAL):
+Your persona is that of an elite, highly professional, and refined Maitre D' at a world-class, 5-star restaurant. You are polite, exceptionally articulate, and sophisticated.
+- Use **elegant, evocative culinary language**.
+- Maintain a **highly professional, respectful, and polished tone**.
+- Language: The spoken_response MUST be in {target_language}.
+- Keep it brief: Maximum 2-3 short sentences. The user is listening to your voice.
+
+### YOUR ENVIRONMENT (AVAILABLE ROUTES & ACTIONS):
+You have access to the following application states:
+1. `/menu` (MenuPage): Shows the full categorized menu.
+2. `/orders` (OrdersPage): Shows the customer's order history.
+3. `/kitchen-status` (KitchenStatusPage): Shows live tracking of their active order.
+4. `/instant-service` (InstantServicePage): Quick actions to call staff or request bills.
+
+### RULES OF BEHAVIOR:
+1. **Zero-Friction Execution:** If a user asks to see their order status, DO NOT ask "Would you like me to take you there?" Just route them to `/kitchen-status`.
+2. **Context-Aware Navigation:** If they ask for the menu, route them to `/menu`. If they ask for help or service, route them to `/instant-service`.
+3. **Action Triggers:** If a user asks for human help, trigger the `CALL_STAFF` API action.
+4. **Recommendations:** If a user asks for recommendations, suggestions, or "what is good", set `ui_action: "SHOW_RECOMMENDATIONS"`, route to `"STAY"`, and provide 2-3 items in the `recommendations` payload array with compelling, mouth-watering reasons.
+5. **Order Confirmation (CRITICAL):** If a user asks to order items, DO NOT trigger `SUBMIT_ORDER` immediately. Instead, set `api_trigger: "ADD_TO_CART"`, include the items in `cart_items`, repeat the order back to them, and EXPLICITLY ASK "Would you like to confirm this order?". ONLY trigger `SUBMIT_ORDER` if the user explicitly confirms (e.g., "yes", "confirm", "go ahead"). When triggering `SUBMIT_ORDER`, your spoken_response MUST be exactly: "Please pay to place the order. If it gets paid, then it will be placed." DO NOT say the order has been placed yet.
+6. **Waiting (CRITICAL):** If a user explicitly asks you to wait, give them time to think, or hold on, respond politely acknowledging this and set `api_trigger: "WAIT_AND_CHECK_IN"`.
+
+### REQUIRED OUTPUT FORMAT:
+You MUST respond EXCLUSIVELY in the following JSON format. Your response will be parsed directly by a React application. Do not include markdown formatting or text outside the JSON object.
+
+{{
+  "spoken_response": "The natural text to be spoken via Text-to-Speech.",
+  "client_commands": {{
+    "route_to": "string (e.g., '/menu', '/kitchen-status', '/checkout', or 'STAY')",
+    "ui_action": "string (e.g., 'SHOW_3D_MODEL', 'SHOW_RECOMMENDATIONS', 'NONE')",
+    "api_trigger": "string (e.g., 'FETCH_ORDER_STATUS', 'CALL_STAFF', 'ADD_TO_CART', 'SUBMIT_ORDER', 'WAIT_AND_CHECK_IN', 'NONE')"
+  }},
+  "payload": {{
+    "model_ids": ["array of exact menu_ids to show in 3D if ui_action is SHOW_3D_MODEL"],
+    "recommendations": [
+      {{
+        "menu_id": "exact menu_id of recommended item",
+        "reason": "Personalized reason why this is recommended"
+      }}
+    ],
+    "cart_items": [
+      {{
+        "menu_id": "string",
+        "quantity": 1
+      }}
+    ],
+    "filters": ["array of dietary filters"]
+  }}
+}}
+
+MENU:
+{menu_text}
+"""
 
     history_messages = []
     if chat_history:
@@ -183,33 +226,44 @@ async def process_voice_order(
     groq_msgs.extend(history_messages)
     groq_msgs.append({"role": "user", "content": transcript})
 
-    raw_response = await _call_groq(
-        messages=groq_msgs,
-        temperature=0.3,
-        max_tokens=400,
-    )
+    try:
+        raw_response = await _call_groq(
+            messages=groq_msgs,
+            temperature=0.5,
+            max_tokens=800,
+        )
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 429:
+            raw_response = '{"spoken_response": "I am receiving too many requests at the moment. Please wait a minute and try again.", "client_commands": {"route_to": "STAY", "ui_action": "NONE", "api_trigger": "NONE"}, "payload": {}}'
+        else:
+            raw_response = '{"spoken_response": "I am experiencing network difficulties. Please try again later.", "client_commands": {"route_to": "STAY", "ui_action": "NONE", "api_trigger": "NONE"}, "payload": {}}'
+    except Exception as e:
+        print(f"Error calling Groq API: {e}")
+        raw_response = '{"spoken_response": "I am currently unavailable due to an error.", "client_commands": {"route_to": "STAY", "ui_action": "NONE", "api_trigger": "NONE"}, "payload": {}}'
 
     ai_response = _parse_json_payload(raw_response) or {
-        "response_text": "I couldn't understand the order. Please try again.",
-        "should_place_order": False,
-        "extracted_items": [],
+        "spoken_response": "I couldn't understand the order. Please try again.",
+        "client_commands": {"route_to": "STAY", "ui_action": "NONE", "api_trigger": "NONE"},
+        "payload": {},
     }
 
-    response_text = str(ai_response.get("response_text", ""))[:500]
-    should_place = bool(ai_response.get("should_place_order"))
-    raw_items = (ai_response.get("extracted_items") or [])[:MAX_LINES_PER_ORDER]
-
+    response_text = str(ai_response.get("spoken_response", ""))[:800]
+    client_commands = ai_response.get("client_commands", {"route_to": "STAY", "ui_action": "NONE", "api_trigger": "NONE"})
+    payload = ai_response.get("payload", {})
+    
     order_placed = False
     order_data = None
 
-    if should_place and raw_items:
-        order_data = await _create_order_validated(
-            extracted=raw_items,
-            menu_by_id=by_id,
-            table_number=table_number,
-            session_id=session_id,
-            db=db,
-        )
+    if client_commands.get("api_trigger") == "SUBMIT_ORDER" and payload.get("cart_items"):
+        raw_items = payload.get("cart_items", [])[:MAX_LINES_PER_ORDER]
+        if raw_items:
+            order_data = await _create_order_validated(
+                extracted=raw_items,
+                menu_by_id=by_id,
+                table_number=table_number,
+                session_id=session_id,
+                db=db,
+            )
         if order_data:
             order_placed = True
             response_text = (response_text + f" Order {order_data['order_id']} created. Please complete the payment to finalize your order.").strip()
@@ -217,6 +271,8 @@ async def process_voice_order(
     return {
         "success": True,
         "response_text": response_text,
+        "client_commands": client_commands,
+        "payload": payload,
         "order_placed": order_placed,
         "order_id": order_data["order_id"] if order_data else None,
         "order_data": order_data,
@@ -300,9 +356,72 @@ async def get_ai_recommendations(menu_items: List[Dict], order_history: List[str
     if not menu_items:
         return {"success": False, "recommendations": []}
     
-    # Logic for Groq-based recommendations
-    # For brevity, returning items with a placeholder summary if key exists
-    if settings.GROQ_API_KEY:
-        return {"success": True, "summary": "AI Picks", "recommendations": [{"name": i["name"], "reason": "Matches your style"} for i in menu_items[:3]], "source": "ai"}
+    if not settings.GROQ_API_KEY:
+        # Fallback if no API key
+        fallback_recs = []
+        for i in menu_items[:3]:
+            rec = dict(i)
+            rec["reason"] = "Customer favorite"
+            fallback_recs.append(rec)
+        return {"success": True, "summary": "Popular Picks", "recommendations": fallback_recs, "source": "fallback"}
+        
+    menu_text = "\n".join([f"- {m['name']} (Category: {m.get('category', 'N/A')})" for m in menu_items])
+    history_text = ", ".join(order_history) if order_history else "None"
+    pref_text = preferences if preferences else "None"
     
-    return {"success": True, "summary": "Popular Picks", "recommendations": [{"name": i["name"], "reason": "Customer favorite"} for i in menu_items[:3]], "source": "fallback"}
+    system_prompt = f"""You are an expert AI food recommendation engine.
+Given the restaurant's menu, the customer's order history, and any dietary preferences, you must recommend 3 to 4 items they are likely to enjoy.
+You must return the result as a JSON object strictly following this schema:
+{{
+  "summary": "A short, engaging title for these recommendations (e.g., 'Perfectly Curated for You')",
+  "recommendations": [
+    {{
+      "name": "Exact Name of the Menu Item",
+      "reason": "A highly personalized, mouth-watering sentence explaining why this is recommended based on their history or preferences."
+    }}
+  ]
+}}
+
+MENU:
+{menu_text}
+
+ORDER HISTORY:
+{history_text}
+
+DIETARY PREFERENCES:
+{pref_text}
+"""
+    
+    try:
+        raw = await _call_groq(
+            messages=[{"role": "system", "content": system_prompt}],
+            temperature=0.7,
+            max_tokens=600,
+        )
+        parsed = _parse_json_payload(raw)
+        if parsed and "recommendations" in parsed:
+            recs = []
+            for r in parsed["recommendations"]:
+                match = next((m for m in menu_items if m["name"].lower() == r.get("name", "").lower()), None)
+                if match:
+                    rec_item = dict(match)
+                    rec_item["reason"] = r.get("reason", "Highly recommended for you.")
+                    recs.append(rec_item)
+            
+            if recs:
+                return {
+                    "success": True, 
+                    "summary": parsed.get("summary", "Personalized AI Recommendations"),
+                    "recommendations": recs,
+                    "source": "ai"
+                }
+    except Exception as e:
+        print(f"[grok_service] Recommendation error: {e}")
+        
+    # Fallback on error
+    fallback_recs = []
+    for i in menu_items[:3]:
+        rec = dict(i)
+        rec["reason"] = "Customer favorite"
+        fallback_recs.append(rec)
+    return {"success": True, "summary": "Popular Picks", "recommendations": fallback_recs, "source": "fallback"}

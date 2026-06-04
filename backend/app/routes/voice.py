@@ -92,6 +92,8 @@ async def voice_order(
         "success": groq_result.get("success", True),
         "transcript": final_transcript,
         "response_text": groq_result["response_text"],
+        "client_commands": groq_result.get("client_commands"),
+        "payload": groq_result.get("payload"),
         "order_placed": groq_result.get("order_placed", False),
         "order_id": groq_result.get("order_id"),
         "audio_base64": tts_result.get("audio_base64"),

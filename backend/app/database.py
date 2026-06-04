@@ -6,6 +6,14 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import ASCENDING, DESCENDING
 import logging
 from app.config import settings
+import dns.resolver
+
+# Force Python to use Google/Cloudflare DNS to bypass broken local Wi-Fi routers (SERVFAIL)
+try:
+    dns.resolver.default_resolver = dns.resolver.Resolver(configure=False)
+    dns.resolver.default_resolver.nameservers = ['8.8.8.8', '1.1.1.1']
+except Exception:
+    pass
 
 logger = logging.getLogger(__name__)
 
