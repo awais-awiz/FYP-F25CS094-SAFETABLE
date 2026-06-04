@@ -12,6 +12,7 @@ import { ChevronLeft, ChevronRight, Box, Play, Pause, Sparkles } from "lucide-re
 import { Button } from "@/components/ui/button";
 import { models3dApi } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
+import GLBModelViewer from "@/components/GLBModelViewer";
 
 // ─── GLB Model (auto-rotating) ────────────────────────────────────────────
 const GLBDish = ({ url, scale = 1 }) => {
@@ -286,66 +287,69 @@ const MenuScene = () => {
         </div>
       )}
 
-      {/* Three.js Canvas */}
-      <Canvas
-        shadows
-        dpr={[1, 1.5]}
-        onCreated={handleCreated}
-        gl={{
-          antialias: true,
-          powerPreference: "default",
-          failIfMajorPerformanceCaveat: false,
-        }}
-      >
-        <ContextLossHandler />
-        <PerspectiveCamera makeDefault position={[0, 2.5, 5]} fov={45} />
-        <OrbitControls
-          enablePan={false}
-          minDistance={2.5}
-          maxDistance={8}
-          minPolarAngle={Math.PI / 4}
-          maxPolarAngle={Math.PI / 2 + 0.1}
-          autoRotate={false} 
-        />
+      {/* 3D Model Viewer or Fallback */}
+      {modelUrl ? (
+        <div className="w-full h-full absolute inset-0">
+          <GLBModelViewer 
+            modelUrl={modelUrl} 
+            height="100%" 
+            showControls={false} 
+          />
+        </div>
+      ) : (
+        <Canvas
+          shadows
+          dpr={[1, 1.5]}
+          onCreated={handleCreated}
+          gl={{
+            antialias: true,
+            powerPreference: "default",
+            failIfMajorPerformanceCaveat: false,
+          }}
+        >
+          <ContextLossHandler />
+          <PerspectiveCamera makeDefault position={[0, 2.5, 5]} fov={45} />
+          <OrbitControls
+            enablePan={false}
+            minDistance={2.5}
+            maxDistance={8}
+            minPolarAngle={Math.PI / 4}
+            maxPolarAngle={Math.PI / 2 + 0.1}
+            autoRotate={false} 
+          />
 
-        {/* Cinematic Lighting */}
-        <ambientLight intensity={1.2} />
-        <directionalLight
-          position={[5, 10, 5]}
-          intensity={1.5}
-          castShadow
-          shadow-mapSize-width={1024}
-          shadow-mapSize-height={1024}
-          shadow-bias={-0.0001}
-        />
-        <spotLight 
-          position={[-5, 5, -5]} 
-          intensity={1} 
-          color="#a855f7" 
-          distance={20}
-          angle={Math.PI / 4}
-          penumbra={1}
-        />
+          {/* Cinematic Lighting */}
+          <ambientLight intensity={1.2} />
+          <directionalLight
+            position={[5, 10, 5]}
+            intensity={1.5}
+            castShadow
+            shadow-mapSize-width={1024}
+            shadow-mapSize-height={1024}
+            shadow-bias={-0.0001}
+          />
+          <spotLight 
+            position={[-5, 5, -5]} 
+            intensity={1} 
+            color="#a855f7" 
+            distance={20}
+            angle={Math.PI / 4}
+            penumbra={1}
+          />
 
-        {/* 3D Model or Fallback */}
-        <Suspense fallback={<CanvasLoader />}>
-          {modelUrl ? (
-            <GLBDish url={modelUrl} scale={1.2} />
-          ) : (
-            <PrimitiveDish position={[0, 0, 0]} />
-          )}
-        </Suspense>
+          <PrimitiveDish position={[0, 0, 0]} />
 
-        {/* Contact shadows for realistic grounding */}
-        <ContactShadows
-          position={[0, -0.6, 0]}
-          opacity={0.6}
-          scale={15}
-          blur={2.5}
-          far={4}
-          color="#000000"
-        />
-      </Canvas>
+          {/* Contact shadows for realistic grounding */}
+          <ContactShadows
+            position={[0, -0.6, 0]}
+            opacity={0.6}
+            scale={15}
+            blur={2.5}
+            far={4}
+            color="#000000"
+          />
+        </Canvas>
+      )}
 
       {/* Cinematic Vignette Overlay */}
       <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_100px_rgba(0,0,0,0.2)] rounded-3xl" />
