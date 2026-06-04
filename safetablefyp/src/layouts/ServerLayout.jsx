@@ -22,8 +22,10 @@ const ServerLayout = () => {
   const readyOrdersCount = getAllOrders().filter((o) => o.status === 'awaiting_pickup').length;
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    setTimeout(() => {
+      logout();
+      navigate('/login');
+    }, 100);
   };
 
   return (

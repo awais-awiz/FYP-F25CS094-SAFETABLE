@@ -18,8 +18,10 @@ const CleanerLayout = () => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    setTimeout(() => {
+      logout();
+      navigate('/login');
+    }, 100);
   };
 
   return (

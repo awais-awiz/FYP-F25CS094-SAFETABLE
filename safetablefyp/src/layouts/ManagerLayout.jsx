@@ -21,8 +21,10 @@ const ManagerLayout = () => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    setTimeout(() => {
+      logout();
+      navigate('/login');
+    }, 100);
   };
 
   const navItems = [

@@ -459,7 +459,8 @@ const GlobalVoiceAssistant = () => {
     setIsChatOpen(true);
   };
 
-  if (!hasTicket) return null;
+  const hiddenPaths = ["/login", "/signup", "/admin", "/manager", "/server", "/cleaner", "/kitchen"];
+  if (!hasTicket || hiddenPaths.some(p => location.pathname.startsWith(p))) return null;
 
   return (
     <>

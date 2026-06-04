@@ -21,8 +21,10 @@ const KitchenLayout = () => {
   const pendingOrdersCount = getAllOrders().filter((o) => o.status === 'pending').length;
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    setTimeout(() => {
+      logout();
+      navigate('/login');
+    }, 100);
   };
 
   return (
