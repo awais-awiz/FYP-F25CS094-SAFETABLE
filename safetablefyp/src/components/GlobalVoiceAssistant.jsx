@@ -149,7 +149,7 @@ const GlobalVoiceAssistant = () => {
     if (hasTicket && isFirstRender.current) {
       isFirstRender.current = false;
       const welcome = WELCOME_MESSAGES[selectedLanguage] || WELCOME_MESSAGES["en"];
-      speakText(welcome, selectedLanguage, audioPlayerRef);
+      speakText(welcome, selectedLanguage, audioPlayerRef, () => startRecording());
     }
   }, [hasTicket, selectedLanguage]);
 
@@ -163,7 +163,7 @@ const GlobalVoiceAssistant = () => {
     const welcome = WELCOME_MESSAGES[selectedLanguage] || WELCOME_MESSAGES["en"];
     setMessages([{ role: "ai", content: welcome }]);
     setOrderStatus(null);
-    speakText(welcome, selectedLanguage, audioPlayerRef);
+    speakText(welcome, selectedLanguage, audioPlayerRef, () => startRecording());
   }, [selectedLanguage]);
 
   const mediaRecorderRef = useRef(null);
@@ -383,7 +383,7 @@ const GlobalVoiceAssistant = () => {
         }
 
         const handleAudioEnd = () => {
-          if (!data.order_placed && commands?.api_trigger !== "SUBMIT_ORDER" && commands?.api_trigger !== "WAIT_AND_CHECK_IN" && !manualStopRef.current) {
+          if (!data.order_placed && commands?.api_trigger !== "SUBMIT_ORDER" && commands?.api_trigger !== "WAIT_AND_CHECK_IN") {
             startRecording();
           }
         };
