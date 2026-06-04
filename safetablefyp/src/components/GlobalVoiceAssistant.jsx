@@ -220,7 +220,13 @@ const GlobalVoiceAssistant = () => {
       checkInTimeoutRef.current = null;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      });
       streamRef.current = stream;
 
       mediaRecorderRef.current = new MediaRecorder(stream);
@@ -258,7 +264,7 @@ const GlobalVoiceAssistant = () => {
         const sum = dataArray.reduce((a, b) => a + b, 0);
         const averageVolume = sum / dataArray.length;
 
-        if (averageVolume > 15) {
+        if (averageVolume > 25) {
           hasSpoken = true;
           silenceStart = null;
         } else if (hasSpoken) {
@@ -383,7 +389,7 @@ const GlobalVoiceAssistant = () => {
         }
 
         const handleAudioEnd = () => {
-          if (!data.order_placed && commands?.api_trigger !== "SUBMIT_ORDER" && commands?.api_trigger !== "WAIT_AND_CHECK_IN") {
+          if (!data.order_placed && commands?.api_trigger !== "SUBMIT_ORDER" && commands?.api_trigger !== "WAIT_AND_CHECK_IN" && !manualStopRef.current) {
             startRecording();
           }
         };
@@ -418,7 +424,7 @@ const GlobalVoiceAssistant = () => {
       } else if (data?.response_text) {
         setMessages(prev => [...prev, { role: "ai", content: data.response_text }]);
         speakText(data.response_text, currentLang, audioPlayerRef, () => {
-          startRecording();
+          if (!manualStopRef.current) startRecording();
         });
       }
     } catch (err) {
