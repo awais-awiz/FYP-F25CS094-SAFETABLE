@@ -67,9 +67,14 @@ async def list_tasks(
     if table_number is not None:
         query["table_number"] = table_number
 
-    # Scope: a non-manager can only see their own tasks regardless of filters.
+    # Scope: a non-manager can only see their own tasks or unassigned tasks for their role.
     if actor["role"] not in {"manager", "admin"}:
-        query["assigned_to"] = actor["username"]
+        if "assigned_to" in query:
+            del query["assigned_to"]
+        query["$or"] = [
+            {"assigned_to": actor["username"]},
+            {"assigned_to": "unassigned", "role": actor["role"]}
+        ]
 
     tasks = []
     cursor = db.tasks.find(query).sort("created_at", -1)
