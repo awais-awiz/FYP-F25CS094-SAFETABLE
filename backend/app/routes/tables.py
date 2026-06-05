@@ -145,6 +145,14 @@ async def get_all_active_tables(
     cursor = db.table_sessions.find({"is_active": True}).sort("table_number", 1)
     async for session in cursor:
         session["_id"] = str(session["_id"])
+        
+        # Check if this session has any incomplete orders
+        active_orders_count = await db.orders.count_documents({
+            "session_id": session["session_id"],
+            "status": {"$nin": ["completed", "cancelled"]}
+        })
+        session["has_active_orders"] = active_orders_count > 0
+        
         tables.append(session)
         
     meta_cursor = db.table_meta.find({})
