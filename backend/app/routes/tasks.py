@@ -162,9 +162,12 @@ async def update_task_status(
     if not task:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Task not found")
 
-    if actor["role"] not in {"manager", "admin"} and task.get("assigned_to") != actor["username"]:
-        raise HTTPException(status.HTTP_403_FORBIDDEN,
-                            "Only the assignee or a manager+ may update this task")
+    if actor["role"] not in {"manager", "admin"}:
+        is_assignee = task.get("assigned_to") == actor["username"]
+        is_unassigned_match = task.get("assigned_to") == "unassigned" and task.get("role") == actor["role"]
+        if not is_assignee and not is_unassigned_match:
+            raise HTTPException(status.HTTP_403_FORBIDDEN,
+                                "Only the assignee, a matching role (if unassigned), or a manager+ may update this task")
 
     current = task["status"]
     new_status = update.status.value
@@ -214,3 +217,4 @@ async def delete_task(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Task not found")
     await manager.broadcast_to_kitchen({"type": "task_delete", "data": {"task_id": task_id}})
     return {"message": f"Task '{task_id}' deleted successfully"}
+  
