@@ -16,6 +16,7 @@ from app.database import get_database
 from app.models.task import TaskCreate, TaskStatus, TaskStatusUpdate
 from app.routes.auth import VALID_ROLES, require_roles
 from app.util import utcnow
+from app.websockets.kitchen import manager
 
 router = APIRouter(prefix="/api/tasks", tags=["Tasks"])
 
@@ -124,7 +125,9 @@ async def create_task(
 
     result = await db.tasks.insert_one(task_dict)
     task_dict["_id"] = str(result.inserted_id)
-    return _serialize(task_dict)
+    serialized = _serialize(task_dict)
+    await manager.broadcast_to_kitchen({"type": "task_update", "data": serialized})
+    return serialized
 
 # ─── Per-task ────────────────────────────────────────────────────────────
 
@@ -194,7 +197,9 @@ async def update_task_status(
                             "Task changed concurrently; refresh and retry")
 
     updated = await db.tasks.find_one({"_id": task["_id"]})
-    return _serialize(updated)
+    serialized = _serialize(updated)
+    await manager.broadcast_to_kitchen({"type": "task_update", "data": serialized})
+    return serialized
 
 @router.delete("/{task_id}")
 async def delete_task(
@@ -207,4 +212,5 @@ async def delete_task(
         result = await db.tasks.delete_one({"_id": ObjectId(task_id)})
     if result.deleted_count == 0:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Task not found")
+    await manager.broadcast_to_kitchen({"type": "task_delete", "data": {"task_id": task_id}})
     return {"message": f"Task '{task_id}' deleted successfully"}
