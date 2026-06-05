@@ -10,6 +10,7 @@ import { useOrders } from "@/hooks/useOrders";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useService } from "@/hooks/useService";
+import { useKitchenSocket } from "@/hooks/useKitchenSocket";
 
 const ManagerDashboard = () => {
   const { orders, refreshKitchen } = useOrders();
@@ -25,11 +26,17 @@ const ManagerDashboard = () => {
     
     const t = setInterval(() => {
       refreshKitchen();
+      refreshService({ status_filter: "pending" }).catch(() => {});
       setNow(new Date());
     }, 5000);
     
     return () => clearInterval(t);
   }, [refreshKitchen, refreshStaff, refreshService]);
+
+  useKitchenSocket(() => {
+    refreshKitchen();
+    refreshService({ status_filter: "pending" }).catch(() => {});
+  });
 
   // Calculate aggregated stats across all operational portals
   const portalStats = useMemo(() => {
