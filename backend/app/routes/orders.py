@@ -162,9 +162,6 @@ async def create_order(
         result = await db.orders.insert_one(order_dict)
         order_dict["_id"] = str(result.inserted_id)
 
-        # Notify kitchen of the new order immediately
-        await manager.broadcast_new_order(_stringify_id(order_dict))
-
         return order_dict
 
     except Exception as e:
