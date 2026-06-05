@@ -162,6 +162,13 @@ async def create_order(
         result = await db.orders.insert_one(order_dict)
         order_dict["_id"] = str(result.inserted_id)
 
+        # Notify cleaner dashboard to refresh and lock the table (because it now has an order)
+        # We use table_update instead of new_order so it doesn't alert the kitchen prematurely
+        await manager.broadcast_to_kitchen({
+            "type": "table_update",
+            "data": {"table_number": ticket["table_number"], "is_active": True}
+        })
+
         return order_dict
 
     except Exception as e:
@@ -289,4 +296,3 @@ async def get_server_active_orders(_: dict = Depends(require_roles("server", "ma
     
     orders = ready_orders + completed_orders
     return {"orders": [_stringify_id(o) for o in orders]}
-  
