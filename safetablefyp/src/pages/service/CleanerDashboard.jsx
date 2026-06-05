@@ -1,5 +1,6 @@
 import { useService } from "@/hooks/useService";
 import { useAuth } from "@/hooks/useAuth";
+import { useKitchenSocket } from "@/hooks/useKitchenSocket";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,21 +21,18 @@ const CleanerDashboard = () => {
   const [now, setNow] = useState(new Date());
   const prevRequestsLength = useRef(requests.length);
 
+  useKitchenSocket(() => {
+    refreshService({ role: "cleaner", status_filter: "pending" }).catch(() => {});
+  });
+
   useEffect(() => {
     // Initial fetch
     refreshService({ role: "cleaner", status_filter: "pending" }).catch(() => {});
     
-    // Auto-refresh requests every 8 seconds
-    const refreshTimer = setInterval(
-      () => refreshService({ role: "cleaner", status_filter: "pending" }).catch(() => {}),
-      8000,
-    );
-
     // Update the "minutes ago" counter every minute
     const tickTimer = setInterval(() => setNow(new Date()), 60000);
 
     return () => { 
-      clearInterval(refreshTimer); 
       clearInterval(tickTimer); 
     };
   }, [refreshService]);
