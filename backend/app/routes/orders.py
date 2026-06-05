@@ -289,3 +289,4 @@ async def get_server_active_orders(_: dict = Depends(require_roles("server", "ma
     
     orders = ready_orders + completed_orders
     return {"orders": [_stringify_id(o) for o in orders]}
+  
