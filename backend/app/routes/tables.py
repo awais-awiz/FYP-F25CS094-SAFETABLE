@@ -120,6 +120,24 @@ async def end_session(
 ):
     """Close the active session for a table."""
     db = get_database()
+    
+    # 1. Look up the active session
+    session = await db.table_sessions.find_one({"table_number": table_number, "is_active": True})
+    if not session:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No active session to end")
+
+    # 2. Check for active orders
+    active_orders_count = await db.orders.count_documents({
+        "session_id": session["session_id"],
+        "status": {"$nin": ["completed", "cancelled"]}
+    })
+    if active_orders_count > 0:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, 
+            "Cannot end session: Orders are still in progress for this table."
+        )
+
+    # 3. Proceed to end session
     result = await db.table_sessions.update_many(
         {"table_number": table_number, "is_active": True},
         {"$set": {"is_active": False, "ended_at": utcnow(), "ended_by": actor["username"]}},
