@@ -32,7 +32,7 @@ from app.routes.tasks import router as tasks_router
 from app.routes.voice import router as voice_router
 from app.routes.service_requests import router as service_requests_router
 from app.routes.upload import router as upload_router
-KITCHEN_WS_ROLES = {"kitchen", "manager", "admin"}
+KITCHEN_WS_ROLES = {"kitchen", "manager", "admin", "server", "cleaner"}
 ALLOWED_WS_ORIGINS = set(settings.cors_origins)
 
 
