@@ -27,7 +27,7 @@ const AdminDashboard = () => {
   const [now, setNow] = useState(new Date());
 
   // Fetch Summary Stats (Revenue, Total Orders, etc)
-  const { data: stats } = useQuery({
+  const { data: stats, refetch: refetchStats } = useQuery({
     queryKey: ["admin", "stats"],
     queryFn: () => adminApi.dashboardStats(),
     refetchInterval: 10000,
@@ -41,7 +41,7 @@ const AdminDashboard = () => {
   });
 
   // Fetch Service and Cleaning Tasks
-  const { data: pendingTasks } = useQuery({
+  const { data: pendingTasks, refetch: refetchTasks } = useQuery({
     queryKey: ["tasks", "active"],
     queryFn: () => tasksApi.list({ status_filter: "pending" }),
     refetchInterval: 10000,
@@ -57,7 +57,11 @@ const AdminDashboard = () => {
   }, []);
 
   // Listen for real-time socket events to update the feed instantly
-  useKitchenSocket(() => refetchOrders());
+  useKitchenSocket(() => {
+    refetchOrders();
+    refetchTasks();
+    refetchStats();
+  });
 
   const cleanTasks = useMemo(
     () => (pendingTasks?.tasks || []).filter((t) => t.role === "cleaner"),
