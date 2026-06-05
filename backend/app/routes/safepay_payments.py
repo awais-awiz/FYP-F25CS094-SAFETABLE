@@ -12,6 +12,7 @@ import uuid
 router = APIRouter(prefix="/api/safepay", tags=["Safepay Payments"])
 
 @router.post("/generate-qr", status_code=201)
+
 async def create_safepay_intent(payment: SafepayPaymentCreate):
     db = get_database()
     order = await db.orders.find_one({"order_id": payment.order_id})
