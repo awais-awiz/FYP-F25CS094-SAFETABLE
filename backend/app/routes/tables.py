@@ -21,6 +21,7 @@ from app.routes.auth import (
     require_roles,
 )
 from app.util import utcnow
+from app.websockets.kitchen import manager
 
 router = APIRouter(prefix="/api/tables", tags=["Tables"])
 
@@ -62,6 +63,8 @@ async def create_session(
         table_number=session.table_number,
         session_id=session_id,
     )
+
+    await manager.broadcast_to_kitchen({"type": "table_update", "data": session_dict})
 
     return {
         **session_dict,
@@ -124,6 +127,8 @@ async def end_session(
     if result.modified_count == 0:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No active session to end")
     
+    await manager.broadcast_to_kitchen({"type": "table_update", "data": {"table_number": table_number, "is_active": False}})
+
     return {
         "message": f"Session ended for table {table_number}",
         "closed_count": result.modified_count
@@ -184,6 +189,8 @@ if not settings.is_production:
         }
         result = await db.table_sessions.insert_one(session_dict)
         session_dict["_id"] = str(result.inserted_id)
+
+        await manager.broadcast_to_kitchen({"type": "table_update", "data": session_dict})
 
         return {
             **session_dict,
