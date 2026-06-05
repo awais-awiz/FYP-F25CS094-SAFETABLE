@@ -360,7 +360,8 @@ const GlobalVoiceAssistant = () => {
   const processAudioPayload = async () => {
     if (audioChunksRef.current.length === 0) return;
     setIsProcessing(true);
-    const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+    const mimeType = mediaRecorderRef.current?.mimeType || "audio/webm";
+    const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
 
     const currentMessages = messagesRef.current;
     const currentLang = selectedLanguageRef.current;
@@ -486,7 +487,11 @@ const GlobalVoiceAssistant = () => {
         });
       }
     } catch (err) {
-      if (err.message && err.message.toLowerCase().includes("no audio")) {
+      console.error("STT/Voice Backend Error:", err);
+      if (err.message && err.message.includes("STT key configured")) {
+        toast({ title: "Missing API Key", description: "The backend is missing GROQ_API_KEY. Please add it to your environment variables.", variant: "destructive" });
+        setMessages(prev => [...prev, { role: "ai", content: "System configuration error. Missing API key." }]);
+      } else if (err.message && err.message.toLowerCase().includes("no audio")) {
         setMessages(prev => [...prev, { role: "ai", content: "I didn't quite catch that. Please tap the mic and try again." }]);
         speakText("I didn't quite catch that. Please tap the mic and try again.", currentLang, audioPlayerRef);
       } else {
