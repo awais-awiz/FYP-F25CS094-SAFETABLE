@@ -8,15 +8,20 @@
 import { create } from "zustand";
 import { tablesApi } from "@/lib/api";
 
-// Maps backend session data to the UI table object
-const fromSession = (s) => ({
-  id:          s.table_number,
-  status:      s.is_active ? "occupied" : "available",
-  zone:        s.language === "en" ? "Main Hall" : "Patio",
-  seats:       4,
-  lastUpdated: s.updated_at || s.created_at || new Date().toISOString(),
-  raw:         s,
-});
+const fromSession = (s, meta = {}) => {
+  let status = meta[s.table_number] || "available";
+  if (s.is_active) {
+    status = "occupied";
+  }
+  return {
+    id:          s.table_number,
+    status:      status,
+    zone:        s.language === "en" ? "Main Hall" : "Patio",
+    seats:       4,
+    lastUpdated: s.updated_at || s.created_at || new Date().toISOString(),
+    raw:         s,
+  };
+};
 
 export const useTables = create((set, get) => ({
   tables: [],
@@ -28,16 +33,17 @@ export const useTables = create((set, get) => ({
     set({ loading: true, error: null });
     try {
       const r = await tablesApi.active();
-      const active = (r.active_tables || []).map(fromSession);
+      const active = (r.active_tables || []).map((t) => fromSession(t, r.meta || {}));
       
       // Generate a default floor plan of 20 tables. 
       // If a table has an active session from the backend, use that data.
       const byId = new Map(active.map((t) => [t.id, t]));
+      const meta = r.meta || {};
       const display = Array.from({ length: 20 }, (_, i) => {
         const id = i + 1;
         return byId.get(id) || {
           id,
-          status: "available",
+          status: meta[id] || "available",
           seats: 4,
           zone: "Main Hall",
           lastUpdated: new Date().toISOString(),
@@ -60,11 +66,12 @@ export const useTables = create((set, get) => ({
   updateStatus: async (id, status) => {
     try {
       if (status === "available") {
-        // Ending a session makes the table available
-        await tablesApi.endSession(id);
+        await tablesApi.endSession(id).catch(() => {});
+        await tablesApi.updateStatus(id, "available").catch(() => {});
       } else if (status === "occupied") {
-        // Creating a session makes the table occupied
-        await tablesApi.createSession(id);
+        await tablesApi.createSession(id).catch(() => {});
+      } else {
+        await tablesApi.updateStatus(id, status).catch(() => {});
       }
     } catch (err) {
       // Logic for permission errors (e.g. only staff can change table status)

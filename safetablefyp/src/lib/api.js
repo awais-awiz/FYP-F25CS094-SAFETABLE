@@ -306,6 +306,7 @@ export const tablesApi = {
   endSession: (table_number) => post(`/api/tables/${table_number}/end-session`),
   active: () => get("/api/tables/active"),
   mySession: () => get("/api/tables/me/session", { withTicket: true, withAuth: false }),
+  updateStatus: (table_number, status) => post(`/api/tables/${table_number}/status`, null, { params: { status } }),
 };
 
 export const models3dApi = {

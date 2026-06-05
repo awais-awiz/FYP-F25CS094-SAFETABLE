@@ -13,6 +13,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { useTables } from "@/hooks/useTables";
+import { useKitchenSocket } from "@/hooks/useKitchenSocket";
 import { useState, useEffect, useMemo } from "react";
 import {
   Plus,
@@ -41,12 +42,17 @@ const TableManagement = () => {
 
   const isManagerOrAdmin = user?.role === "manager" || user?.role === "admin" || user?.role === "server";
 
-  // Pull live sessions from the backend, polled every 8 seconds
+  // Pull live sessions from the backend
   useEffect(() => {
     refresh();
-    const t = setInterval(refresh, 8000);
-    return () => clearInterval(t);
   }, [refresh]);
+
+  // Synchronize instantly using websockets
+  useKitchenSocket((msg) => {
+    if (msg.type === "table_update" || msg.type === "table_meta_update") {
+      refresh();
+    }
+  });
 
   // Initialize with 20 tables if empty (Local Fallback)
   useEffect(() => {
