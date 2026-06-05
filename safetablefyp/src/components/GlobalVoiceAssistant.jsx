@@ -60,6 +60,21 @@ const CANCEL_MESSAGES = {
   ja: "未払いの注文はキャンセルされました。他にお手伝いできることはありますか？",
 };
 
+const REMINDER_MESSAGES = {
+  en: "Please remember to scan the QR code to complete your payment.",
+  ur: "براہ کرم اپنی ادائیگی مکمل کرنے کے لیے کیو آر کوڈ اسکین کرنا یاد رکھیں۔",
+  de: "Bitte denken Sie daran, den QR-Code zu scannen, um Ihre Zahlung abzuschließen.",
+  es: "Por favor, recuerde escanear el código QR para completar su pago.",
+  fr: "N'oubliez pas de scanner le code QR pour finaliser votre paiement.",
+  hi: "कृपया अपना भुगतान पूरा करने के लिए क्यूआर कोड स्कैन करना याद रखें।",
+  ko: "결제를 완료하려면 QR 코드를 스캔해 주세요.",
+  it: "Ricorda di scansionare il codice QR per completare il pagamento.",
+  ar: "يرجى تذكر مسح رمز الاستجابة السريعة لإكمال دفعتك.",
+  ru: "Пожалуйста, не забудьте отсканировать QR-код для завершения оплаты.",
+  zh: "请记得扫描二维码完成支付。",
+  ja: "支払いを完了するためにQRコードをスキャンすることを忘れないでください。",
+};
+
 const PAYMENT_MESSAGES = {
   en: (amount) => `Your order has been placed. The total is ${amount} rupees. Please scan the QR code to pay.`,
   ur: (amount) => `آپ کا آرڈر دے دیا گیا ہے۔ کل بل ${amount} روپے ہے۔ براہ کرم ادائیگی کے لیے کیو آر کوڈ اسکین کریں۔`,
@@ -201,9 +216,13 @@ const GlobalVoiceAssistant = () => {
   }, []);
 
   useEffect(() => {
-    let interval;
+    let pollingInterval;
+    let reminderInterval;
+    let timeout;
+
     if (checkoutStep === "waiting_payment" && currentOrderId) {
-      interval = setInterval(async () => {
+      // 1. Poll for payment status
+      pollingInterval = setInterval(async () => {
         try {
           const res = await paymentsApi.byOrder(currentOrderId);
           if (res && res.status === "completed") {
@@ -214,8 +233,43 @@ const GlobalVoiceAssistant = () => {
           }
         } catch (err) { }
       }, 3000);
+
+      // 2. Remind user every 60 seconds
+      reminderInterval = setInterval(() => {
+        const msg = REMINDER_MESSAGES[selectedLanguage] || REMINDER_MESSAGES["en"];
+        speakText(msg, selectedLanguage, audioPlayerRef);
+      }, 60000);
+
+      // 3. Auto-cancel after 5 minutes (300,000 ms)
+      timeout = setTimeout(async () => {
+        try {
+          // Cancel order
+          await ordersApi.updateStatus(currentOrderId, "cancelled");
+          
+          // Speak cancellation message
+          const msg = CANCEL_MESSAGES[selectedLanguage] || CANCEL_MESSAGES["en"];
+          speakText(msg, selectedLanguage, audioPlayerRef);
+          
+          // End session & reset UI
+          const { tableNumber } = useCustomerSession.getState();
+          if (tableNumber) {
+            await tablesApi.endSession(tableNumber).catch(console.error);
+          }
+          useCustomerSession.getState().end();
+          setCheckoutStep(null);
+          setMessages([]);
+          setOrderStatus("Session Ended due to payment timeout");
+        } catch (err) {
+          console.error("Failed to auto-cancel order:", err);
+        }
+      }, 300000);
     }
-    return () => clearInterval(interval);
+
+    return () => {
+      if (pollingInterval) clearInterval(pollingInterval);
+      if (reminderInterval) clearInterval(reminderInterval);
+      if (timeout) clearTimeout(timeout);
+    };
   }, [checkoutStep, currentOrderId, selectedLanguage]);
 
   const startRecording = async () => {
