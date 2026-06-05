@@ -104,7 +104,7 @@ const speakText = async (text, lang = "en", audioPlayerRef, onEnd = null) => {
 
 const GlobalVoiceAssistant = () => {
   const { toast } = useToast();
-  const { tableNumber, hasTicket } = useCustomerSession();
+  const { tableNumber, hasTicket, sessionJustStarted } = useCustomerSession();
   const { addItem } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
@@ -134,7 +134,7 @@ const GlobalVoiceAssistant = () => {
 
   const messagesEndRef = useRef(null);
   const audioPlayerRef = useRef(typeof Audio !== "undefined" ? new Audio() : null);
-  const isFirstRender = useRef(true);
+  const prevLanguageRef = useRef(selectedLanguage);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -144,18 +144,22 @@ const GlobalVoiceAssistant = () => {
     scrollToBottom();
   }, [messages, isChatOpen]);
 
-  // Welcome TTS on first load
+  // Situation 1: Welcome TTS when customer starts session
   useEffect(() => {
-    if (hasTicket && isFirstRender.current) {
-      isFirstRender.current = false;
+    if (hasTicket && sessionJustStarted) {
+      useCustomerSession.setState({ sessionJustStarted: false });
       const welcome = WELCOME_MESSAGES[selectedLanguage] || WELCOME_MESSAGES["en"];
+      setMessages([{ role: "ai", content: welcome }]);
       speakText(welcome, selectedLanguage, audioPlayerRef, () => startRecording());
     }
-  }, [hasTicket, selectedLanguage]);
+  }, [hasTicket, sessionJustStarted, selectedLanguage]);
 
+  // Situation 2: Welcome TTS when customer changes language
   useEffect(() => {
-    if (isFirstRender.current) return;
     if (!hasTicket) return;
+    if (prevLanguageRef.current === selectedLanguage) return;
+    
+    prevLanguageRef.current = selectedLanguage;
 
     window.speechSynthesis?.cancel();
     if (audioPlayerRef.current) { audioPlayerRef.current.pause(); audioPlayerRef.current.src = ""; }
@@ -164,7 +168,7 @@ const GlobalVoiceAssistant = () => {
     setMessages([{ role: "ai", content: welcome }]);
     setOrderStatus(null);
     speakText(welcome, selectedLanguage, audioPlayerRef, () => startRecording());
-  }, [selectedLanguage]);
+  }, [selectedLanguage, hasTicket]);
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);

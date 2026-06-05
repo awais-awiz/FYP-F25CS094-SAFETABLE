@@ -1,5 +1,6 @@
 import { useService } from "@/hooks/useService";
 import { useAuth } from "@/hooks/useAuth";
+import { useKitchenSocket } from "@/hooks/useKitchenSocket";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,22 +20,31 @@ const CleanerDashboard = () => {
   const isAdminView = location.pathname.startsWith('/admin');
   const [now, setNow] = useState(new Date());
   const prevRequestsLength = useRef(requests.length);
+  const [activeTables, setActiveTables] = useState([]);
+
+  const fetchActiveTables = async () => {
+    try {
+      const res = await tablesApi.active();
+      if (res && res.active_tables) setActiveTables(res.active_tables);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useKitchenSocket(() => {
+    refreshService({ role: "cleaner", status_filter: "pending" }).catch(() => {});
+    fetchActiveTables();
+  });
 
   useEffect(() => {
     // Initial fetch
     refreshService({ role: "cleaner", status_filter: "pending" }).catch(() => {});
+    fetchActiveTables();
     
-    // Auto-refresh requests every 8 seconds
-    const refreshTimer = setInterval(
-      () => refreshService({ role: "cleaner", status_filter: "pending" }).catch(() => {}),
-      8000,
-    );
-
     // Update the "minutes ago" counter every minute
     const tickTimer = setInterval(() => setNow(new Date()), 60000);
 
     return () => { 
-      clearInterval(refreshTimer); 
       clearInterval(tickTimer); 
     };
   }, [refreshService]);
@@ -60,16 +70,39 @@ const CleanerDashboard = () => {
     prevRequestsLength.current = currentPending.length;
   }, [requests]);
 
-  const filteredRequests = useMemo(() => {
-    return requests.filter((req) =>
-      req.type === 'clean' && req.status === 'pending'
-    ).sort((a, b) => new Date(a.requestedAt).getTime() - new Date(b.requestedAt).getTime());
-  }, [requests]);
+  const displayItems = useMemo(() => {
+    const map = new Map();
+    activeTables.forEach(t => {
+      map.set(String(t.table_number), {
+        type: 'table',
+        tableNumber: String(t.table_number),
+        createdAt: t.created_at,
+        id: t.session_id,
+        hasRequest: false,
+      });
+    });
 
-  const handleResolve = async (id, tableNumber) => {
-    await resolveService(id);
+    const currentRequests = requests.filter((req) => req.type === 'clean' && req.status === 'pending');
+    currentRequests.forEach(req => {
+      map.set(String(req.tableNumber), {
+        type: 'request',
+        tableNumber: String(req.tableNumber),
+        createdAt: req.requestedAt,
+        id: req.id,
+        hasRequest: true,
+      });
+    });
+
+    return Array.from(map.values()).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }, [requests, activeTables]);
+
+  const handleResolve = async (id, tableNumber, isRequest) => {
+    if (isRequest) {
+      await resolveService(id);
+    }
     await tablesApi.endSession(tableNumber).catch(console.error);
     toast.success(`Table ${tableNumber} marked as clean and available!`);
+    fetchActiveTables();
   };
 
   const stats = useMemo(() => {
@@ -138,47 +171,55 @@ const CleanerDashboard = () => {
 
       <ScrollArea className="flex-1 p-6 pt-2">
         <div className="pb-20">
-          {filteredRequests.length === 0 ? (
+          {displayItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 bg-muted/10 rounded-2xl border border-dashed border-muted-foreground/20 max-w-2xl mx-auto">
               <CheckCircle className="w-16 h-16 text-muted-foreground/50 mb-4" />
               <h2 className="text-xl font-semibold text-muted-foreground">All Tables Clean</h2>
-              <p className="text-muted-foreground/80">No active cleaning requests at the moment.</p>
+              <p className="text-muted-foreground/80">No active tables or cleaning requests at the moment.</p>
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               <AnimatePresence mode="popLayout">
-                {filteredRequests.map((req) => {
-                  const elapsedMinutes = Math.floor((now.getTime() - new Date(req.requestedAt).getTime()) / 60000);
+                {displayItems.map((item) => {
+                  const elapsedMinutes = Math.floor((now.getTime() - new Date(item.createdAt).getTime()) / 60000);
+                  const isRequest = item.hasRequest;
 
                   return (
                     <motion.div
-                      key={req.id}
+                      key={item.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       layout
                     >
-                      <Card className="p-6 bg-card border-purple-500/30 shadow-lg shadow-purple-500/5 relative overflow-hidden h-full flex flex-col justify-between hover:shadow-purple-500/20 transition-all">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-purple-500" />
+                      <Card className={`p-6 bg-card shadow-lg relative overflow-hidden h-full flex flex-col justify-between transition-all ${isRequest ? "border-purple-500/30 shadow-purple-500/5 hover:shadow-purple-500/20" : "border-border hover:shadow-primary/5"}`}>
+                        <div className={`absolute top-0 left-0 w-1 h-full ${isRequest ? "bg-purple-500" : "bg-primary"}`} />
                         <div>
                           <div className="flex justify-between items-start mb-4">
                             <div>
                               <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Table</span>
-                              <h3 className="text-4xl font-bold text-foreground mt-1">{req.tableNumber}</h3>
+                              <h3 className="text-4xl font-bold text-foreground mt-1">{item.tableNumber}</h3>
                             </div>
-                            <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20 flex items-center gap-1">
-                              <Sparkles className="w-3 h-3" />
-                              Cleanup
-                            </Badge>
+                            {isRequest ? (
+                              <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20 flex items-center gap-1">
+                                <Sparkles className="w-3 h-3" />
+                                Cleanup
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 flex items-center gap-1">
+                                <Activity className="w-3 h-3" />
+                                Occupied
+                              </Badge>
+                            )}
                           </div>
                           <div className="flex items-center gap-2 text-muted-foreground text-sm mb-6 bg-muted/50 p-2 rounded-lg">
                             <Clock className="w-4 h-4" />
-                            Requested {elapsedMinutes}m ago
+                            {isRequest ? "Requested" : "Seated"} {elapsedMinutes}m ago
                           </div>
                         </div>
                         <Button
-                          className="w-full bg-purple-600 hover:bg-purple-500 text-white font-medium py-6 text-lg shadow-lg active:scale-[0.98]"
-                          onClick={() => handleResolve(req.id, req.tableNumber)}
+                          className={`w-full font-medium py-6 text-lg shadow-lg active:scale-[0.98] text-white ${isRequest ? "bg-purple-600 hover:bg-purple-500" : "bg-primary/80 hover:bg-primary"}`}
+                          onClick={() => handleResolve(item.id, item.tableNumber, isRequest)}
                         >
                           Mark as Cleaned
                         </Button>

@@ -20,16 +20,16 @@ import { useCustomerSession } from "@/hooks/useCustomerSession";
 
 // ─── Status config ──────────────────────────────────────────────────────────
 const STATUS = {
-  pending:   { label: "Pending",   icon: Clock,        color: "text-primary",         bg: "bg-primary/10 border-primary/20",        step: 1 },
+  pending:   { label: "Received",   icon: Clock,        color: "text-primary",         bg: "bg-primary/10 border-primary/20",        step: 1 },
   confirmed: { label: "Confirmed", icon: CheckCircle2, color: "text-blue-400",         bg: "bg-blue-500/10 border-blue-500/20",       step: 2 },
   preparing: { label: "Preparing", icon: ChefHat,      color: "text-orange-400",       bg: "bg-orange-500/10 border-orange-500/20",   step: 3 },
-  ready:     { label: "Ready!",    icon: Package,      color: "text-green-400",        bg: "bg-green-500/10 border-green-500/20",     step: 4 },
+  ready:     { label: "Ready",    icon: Package,      color: "text-green-400",        bg: "bg-green-500/10 border-green-500/20",     step: 4 },
   completed: { label: "Completed", icon: Utensils,     color: "text-muted-foreground", bg: "bg-muted/20 border-muted",                step: 5 },
   cancelled: { label: "Cancelled", icon: UtensilsCrossed, color: "text-destructive",   bg: "bg-destructive/10 border-destructive/30", step: 0 },
 };
 
 const STEPS = [
-  { key: "pending",   label: "Order Placed", icon: Clock },
+  { key: "pending",   label: "Received", icon: Clock },
   { key: "confirmed", label: "Confirmed",    icon: CheckCircle2 },
   { key: "preparing", label: "Preparing",    icon: ChefHat },
   { key: "ready",     label: "Ready",        icon: Package },

@@ -34,7 +34,7 @@ const CleanerLayout = () => {
                             <Sparkles className="w-8 h-8 text-purple-500" />
                         </div>
                         <div>
-                            <h1 className="text-2xl font-bold tracking-tight text-foreground">SERVICE PORTAL</h1>
+                            <h1 className="text-2xl font-bold tracking-tight text-foreground">CLEANER PORTAL</h1>
                             <p className="text-xs text-muted-foreground font-mono">CLEANING MONITOR</p>
                         </div>
                     </div>

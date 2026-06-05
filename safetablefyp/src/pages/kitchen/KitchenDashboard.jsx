@@ -85,9 +85,9 @@ const KitchenDashboard = () => {
   const paginatedOrders = filteredOrders.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   const filterTabs = [
-    { id: "pending",   label: "New Orders" },
+    { id: "pending",   label: "Received" },
     { id: "confirmed", label: "Confirmed" },
-    { id: "preparing", label: "In Progress" },
+    { id: "preparing", label: "Preparing" },
     { id: "ready",     label: "Ready" },
     { id: "all",       label: "All Active" },
   ];

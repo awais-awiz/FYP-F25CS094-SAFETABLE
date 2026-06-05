@@ -15,7 +15,7 @@ import { safepayApi, paymentsApi } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 const statusConfig = {
-  pending:   { label: "Pending",   icon: Clock,        color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",             step: 1 },
+  pending:   { label: "Received",   icon: Clock,        color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",             step: 1 },
   confirmed: { label: "Confirmed", icon: CheckCircle2, color: "bg-blue-500/20 text-blue-400 border-blue-500/30",                   step: 2 },
   preparing: { label: "Preparing", icon: ChefHat,      color: "bg-orange-500/20 text-orange-400 border-orange-500/30",             step: 3 },
   ready:     { label: "Ready",     icon: Package,      color: "bg-green-500/20 text-green-400 border-green-500/30",                step: 4 },
