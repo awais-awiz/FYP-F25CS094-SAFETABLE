@@ -99,14 +99,22 @@ const CleanerDashboard = () => {
   }, [requests, activeTables]);
 
   const handleResolve = async (id, tableNumber, isRequest) => {
-    if (isRequest) {
-      await resolveService(id);
-      toast.success(`Cleaning request for Table ${tableNumber} resolved!`);
-    } else {
-      await tablesApi.endSession(tableNumber).catch(console.error);
-      toast.success(`Table ${tableNumber} marked as clean and available!`);
+    try {
+      if (isRequest) {
+        await resolveService(id);
+        toast.success(`Cleaning request for Table ${tableNumber} resolved!`);
+      } else {
+        await tablesApi.endSession(tableNumber);
+        toast.success(`Table ${tableNumber} marked as clean and available!`);
+      }
+      fetchActiveTables();
+    } catch (error) {
+      if (error.message && error.message.toLowerCase().includes("in progress")) {
+        toast.error(`Cannot clean Table ${tableNumber}: Order is already in progress.`);
+      } else {
+        toast.error(`Action failed: ${error.message || "Unknown error"}`);
+      }
     }
-    fetchActiveTables();
   };
 
   const stats = useMemo(() => {
