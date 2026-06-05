@@ -102,6 +102,7 @@ async def create_order(
     ticket: dict = Depends(require_customer_ticket),
 ):
     db = get_database()
+    manager = get_socket_manager()
     
     # Verify session is still active
     session = await db.table_sessions.find_one({
@@ -161,6 +162,9 @@ async def create_order(
 
         result = await db.orders.insert_one(order_dict)
         order_dict["_id"] = str(result.inserted_id)
+
+        # Notify kitchen of the new order immediately
+        await manager.broadcast_new_order(_stringify_id(order_dict))
 
         return order_dict
 

@@ -21,6 +21,7 @@ from app.routes.auth import (
     require_roles,
 )
 from app.util import utcnow
+from app.websockets.kitchen import manager
 
 router = APIRouter(prefix="/api/tables", tags=["Tables"])
 
@@ -62,6 +63,8 @@ async def create_session(
         table_number=session.table_number,
         session_id=session_id,
     )
+
+    await manager.broadcast_to_kitchen({"type": "table_update", "data": session_dict})
 
     return {
         **session_dict,
@@ -124,6 +127,8 @@ async def end_session(
     if result.modified_count == 0:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No active session to end")
     
+    await manager.broadcast_to_kitchen({"type": "table_update", "data": {"table_number": table_number, "is_active": False}})
+
     return {
         "message": f"Session ended for table {table_number}",
         "closed_count": result.modified_count
@@ -132,7 +137,7 @@ async def end_session(
 
 @router.get("/active")
 async def get_all_active_tables(
-    _: dict = Depends(require_roles("server", "manager", "admin", "kitchen")),
+    _: dict = Depends(require_roles("server", "manager", "admin", "kitchen", "cleaner")),
 ):
     """List all currently-active table sessions (staff view)."""
     db = get_database()
@@ -141,7 +146,32 @@ async def get_all_active_tables(
     async for session in cursor:
         session["_id"] = str(session["_id"])
         tables.append(session)
-    return {"active_tables": tables, "total": len(tables)}
+        
+    meta_cursor = db.table_meta.find({})
+    meta = {}
+    async for m in meta_cursor:
+        meta[m["table_number"]] = m["status"]
+        
+    return {"active_tables": tables, "meta": meta, "total": len(tables)}
+
+@router.post("/{table_number}/status")
+async def update_table_status(
+    table_number: int,
+    status: str,
+    _: dict = Depends(require_roles("server", "manager", "admin")),
+):
+    """Update static table status (e.g. reserved, unavailable, available)."""
+    db = get_database()
+    if status == "available":
+        await db.table_meta.delete_one({"table_number": table_number})
+    else:
+        await db.table_meta.update_one(
+            {"table_number": table_number},
+            {"$set": {"status": status}},
+            upsert=True
+        )
+    await manager.broadcast_to_kitchen({"type": "table_meta_update", "data": {"table_number": table_number, "status": status}})
+    return {"message": f"Table {table_number} status updated to {status}"}
 
 
 # ─── Dev-only customer bootstrap (no staff login required) ────────────────
@@ -184,6 +214,8 @@ if not settings.is_production:
         }
         result = await db.table_sessions.insert_one(session_dict)
         session_dict["_id"] = str(result.inserted_id)
+
+        await manager.broadcast_to_kitchen({"type": "table_update", "data": session_dict})
 
         return {
             **session_dict,
