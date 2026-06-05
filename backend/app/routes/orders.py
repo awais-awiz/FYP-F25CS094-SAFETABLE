@@ -102,7 +102,6 @@ async def create_order(
     ticket: dict = Depends(require_customer_ticket),
 ):
     db = get_database()
-    manager = get_socket_manager()
     
     # Verify session is still active
     session = await db.table_sessions.find_one({
