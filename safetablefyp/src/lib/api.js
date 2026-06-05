@@ -213,7 +213,14 @@ export const voiceApi = {
     const fd = new FormData();
     const ticket = customerTicket.get();
     if (ticket) fd.append("customer_ticket", ticket);
-    if (audio) fd.append("audio", audio, "voice.webm");
+    if (audio) {
+      let ext = "webm";
+      if (audio.type.includes("mp4")) ext = "mp4";
+      else if (audio.type.includes("ogg")) ext = "ogg";
+      else if (audio.type.includes("wav")) ext = "wav";
+      else if (audio.type.includes("mpeg")) ext = "mp3";
+      fd.append("audio", audio, `voice.${ext}`);
+    }
     if (transcript) fd.append("transcript", transcript);
     if (chat_history) fd.append("chat_history", chat_history);
     fd.append("language", language);
