@@ -79,6 +79,7 @@ const CleanerDashboard = () => {
         createdAt: t.created_at,
         id: t.session_id,
         hasRequest: false,
+        hasActiveOrders: t.has_active_orders,
       });
     });
 
@@ -90,6 +91,7 @@ const CleanerDashboard = () => {
         createdAt: req.requestedAt,
         id: req.id,
         hasRequest: true,
+        hasActiveOrders: false, // Requests override active order blocking so they can be resolved
       });
     });
 
@@ -99,9 +101,11 @@ const CleanerDashboard = () => {
   const handleResolve = async (id, tableNumber, isRequest) => {
     if (isRequest) {
       await resolveService(id);
+      toast.success(`Cleaning request for Table ${tableNumber} resolved!`);
+    } else {
+      await tablesApi.endSession(tableNumber).catch(console.error);
+      toast.success(`Table ${tableNumber} marked as clean and available!`);
     }
-    await tablesApi.endSession(tableNumber).catch(console.error);
-    toast.success(`Table ${tableNumber} marked as clean and available!`);
     fetchActiveTables();
   };
 
@@ -218,10 +222,11 @@ const CleanerDashboard = () => {
                           </div>
                         </div>
                         <Button
-                          className={`w-full font-medium py-6 text-lg shadow-lg active:scale-[0.98] text-white ${isRequest ? "bg-purple-600 hover:bg-purple-500" : "bg-primary/80 hover:bg-primary"}`}
+                          disabled={!isRequest && item.hasActiveOrders}
+                          className={`w-full font-medium py-6 text-lg shadow-lg active:scale-[0.98] text-white ${isRequest ? "bg-purple-600 hover:bg-purple-500" : (!isRequest && item.hasActiveOrders ? "bg-muted-foreground/30 cursor-not-allowed" : "bg-primary/80 hover:bg-primary")}`}
                           onClick={() => handleResolve(item.id, item.tableNumber, isRequest)}
                         >
-                          Mark as Cleaned
+                          {isRequest ? "Resolve Cleaning Request" : (item.hasActiveOrders ? "Order In Progress" : "Mark as Cleaned")}
                         </Button>
                       </Card>
                     </motion.div>
