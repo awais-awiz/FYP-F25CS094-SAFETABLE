@@ -18,6 +18,7 @@ export const useCustomerSession = create((set, get) => ({
   hasTicket:   !!customerTicket.get(),
   loading:     false,
   error:       null,
+  sessionJustStarted: false,
 
   /** Bootstrap a customer session for a given table. Uses the dev endpoint;
    *  in production this should be replaced by a QR-code flow that hands the
@@ -36,6 +37,7 @@ export const useCustomerSession = create((set, get) => ({
         sessionId:   data.session_id,
         hasTicket:   true,
         loading:     false,
+        sessionJustStarted: true,
       });
       return { success: true };
     } catch (err) {
