@@ -413,7 +413,21 @@ const GlobalVoiceAssistant = () => {
           setActiveModels([]);
         }
 
+        if (commands.api_trigger === "CALL_SERVICE") {
+          const serviceType = payload.service_type || "waiter";
+          fetch(`${API_BASE}/api/service-requests`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ table_number: String(tableNumber || "0"), request_type: serviceType }),
+          }).then(res => {
+            if (res.ok) {
+              toast({ title: "Staff Notified", description: `Your request for ${serviceType} has been instantly sent to the staff.` });
+            }
+          }).catch(err => console.error("Voice service request failed", err));
+        }
+
         if (commands.api_trigger === "CALL_STAFF") {
+          // Legacy fallback just in case
           toast({ title: "Staff Notified", description: "A waiter is on their way to your table." });
         }
 
