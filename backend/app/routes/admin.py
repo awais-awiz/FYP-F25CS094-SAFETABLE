@@ -11,8 +11,7 @@ from app.routes.auth import require_roles
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+from app.util import utcnow as _utcnow
 
 # Only admins and managers can view the dashboard
 admin_manager_only = require_roles("admin", "manager")
@@ -36,7 +35,7 @@ async def get_dashboard_stats(_: dict = Depends(admin_manager_only)):
 
     # Revenue pipeline
     pipeline = [
-        {"$match": {"created_at": {"$gte": today_start}, "status": {"$ne": "cancelled"}}},
+        {"$match": {"created_at": {"$gte": today_start}, "payment_status": "paid"}},
         {"$group": {"_id": None, "total": {"$sum": "$total_price"}}},
     ]
     revenue_result = await db.orders.aggregate(pipeline).to_list(1)
