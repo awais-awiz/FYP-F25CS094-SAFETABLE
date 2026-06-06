@@ -15,6 +15,7 @@ import GLBModelViewer from "@/components/GLBModelViewer";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import dishImage from "@/assets/dish-steak.jpg";
 
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 const LANGUAGES = [
   { code: "en", name: "English" },
   { code: "ur", name: "Urdu" },
