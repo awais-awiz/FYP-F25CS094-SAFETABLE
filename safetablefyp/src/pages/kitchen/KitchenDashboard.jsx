@@ -20,8 +20,9 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLocation } from "react-router-dom";
 
+import { getTargetPrepTime } from "@/lib/utils";
+
 const ITEMS_PER_PAGE = 8;
-const TARGET_PREP_TIME = 20;
 
 const elapsedMinutes = (createdAt, now) =>
   Math.floor((now.getTime() - new Date(createdAt).getTime()) / 60000);
@@ -194,8 +195,9 @@ const KitchenDashboard = () => {
               {paginatedOrders.map((order) => {
                 const cfg = getStatusConfig(order.status);
                 const elapsed = elapsedMinutes(order.createdAt, now);
-                const progress = Math.min((elapsed / TARGET_PREP_TIME) * 100, 100);
-                const isLate = elapsed > TARGET_PREP_TIME && order.status !== "ready";
+                const targetTime = getTargetPrepTime(order.orderId);
+                const progress = Math.min((elapsed / targetTime) * 100, 100);
+                const isLate = elapsed > targetTime && order.status !== "ready";
                 const StatusIcon = cfg.icon;
                 const progressColor = progress > 85 ? "bg-red-500" : progress > 50 ? "bg-yellow-500" : "bg-green-500";
 
