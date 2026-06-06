@@ -6,6 +6,9 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.database import get_database
+from app.websockets.kitchen import manager
+from app.routes.tasks import _generate_task_id, _serialize
+from app.util import utcnow
 
 router = APIRouter(prefix="/api/service-requests", tags=["service-requests"])
 
@@ -19,15 +22,55 @@ class ServiceRequestCreate(BaseModel):
 @router.post("", status_code=201)
 async def create_service_request(payload: ServiceRequestCreate):
     db = get_database()
-    doc = {
-        "table_number": payload.table_number,
-        "request_type": payload.request_type,
-        "note": payload.note,
+    
+    # Map request types to standard task titles and roles
+    if payload.request_type == "cleaner":
+        title = "Cleaning request"
+        role = "cleaner"
+        priority = "medium"
+    elif payload.request_type == "emergency":
+        title = "Emergency"
+        role = "manager"
+        priority = "high"
+    elif payload.request_type == "napkins":
+        title = "Extra Napkins"
+        role = "server"
+        priority = "low"
+    elif payload.request_type == "bill":
+        title = "Bill request"
+        role = "server"
+        priority = "medium"
+    else:
+        title = "Server assistance"
+        role = "server"
+        priority = "medium"
+
+    table_num = int(payload.table_number) if str(payload.table_number).isdigit() else None
+    now = utcnow()
+
+    task_dict = {
+        "task_id": _generate_task_id(),
+        "title": title,
+        "description": f"Instant Service Request: {payload.request_type}",
+        "assigned_to": "unassigned",
+        "role": role,
+        "priority": priority,
         "status": "pending",
-        "created_at": datetime.utcnow(),
-        "resolved_at": None,
+        "table_number": table_num,
+        "due_time": None,
+        "notes": payload.note,
+        "created_at": now,
+        "updated_at": now,
+        "created_by": f"table_{payload.table_number}",
     }
-    result = await db.service_requests.insert_one(doc)
+
+    result = await db.tasks.insert_one(task_dict)
+    task_dict["_id"] = str(result.inserted_id)
+    
+    # Format and broadcast exactly as tasks.py does
+    serialized = _serialize(task_dict)
+    await manager.broadcast_to_kitchen({"type": "task_update", "data": serialized})
+    
     return {"id": str(result.inserted_id), "status": "pending"}
 
 
@@ -51,8 +94,20 @@ async def list_service_requests(status: Optional[str] = None):
 async def resolve_service_request(request_id: str):
     from bson import ObjectId
     db = get_database()
-    await db.service_requests.update_one(
-        {"_id": ObjectId(request_id)},
-        {"$set": {"status": "resolved", "resolved_at": datetime.utcnow()}},
+    
+    # Check if request_id is an ObjectId (legacy) or task_id
+    query = {"_id": ObjectId(request_id)} if ObjectId.is_valid(request_id) else {"task_id": request_id}
+    
+    now = utcnow()
+    await db.tasks.update_one(
+        query,
+        {"$set": {"status": "completed", "updated_at": now}},
     )
+    
+    # Broadcast resolution to dashboards
+    task = await db.tasks.find_one(query)
+    if task:
+        serialized = _serialize(task)
+        await manager.broadcast_to_kitchen({"type": "task_update", "data": serialized})
+        
     return {"status": "resolved"}
