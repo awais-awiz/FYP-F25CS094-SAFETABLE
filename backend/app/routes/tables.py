@@ -11,6 +11,7 @@ The /dev-session endpoint is mounted ONLY when ENV != production so the
 customer-side demo can self-bootstrap a ticket without staff intervention.
 """
 import uuid
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.config import settings
 from app.database import get_database
