@@ -12,10 +12,9 @@ import { ChevronLeft, ChevronRight, Box, Play, Pause, Sparkles } from "lucide-re
 import { Button } from "@/components/ui/button";
 import { models3dApi } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
-import GLBModelViewer from "@/components/GLBModelViewer";
 
 // ─── GLB Model (auto-rotating) ────────────────────────────────────────────
-const GLBDish = ({ url, scale = 1 }) => {
+const GLBDish = ({ url }) => {
   const { scene } = useGLTF(url);
   const groupRef = useRef();
 
@@ -24,11 +23,11 @@ const GLBDish = ({ url, scale = 1 }) => {
   });
 
   return (
-    <Center>
-      <group ref={groupRef} scale={scale}>
-        <primitive object={scene.clone()} />
-      </group>
-    </Center>
+    <group ref={groupRef} dispose={null} position={[0, -0.5, 0]}>
+      <Center>
+        <primitive object={scene} />
+      </Center>
+    </group>
   );
 };
 
@@ -280,87 +279,73 @@ const MenuScene = () => {
         </div>
       )}
 
-      {/* 3D Model Viewer or Fallback */}
-      <AnimatePresence mode="wait">
-        {modelUrl ? (
-          <motion.div 
-            key={modelUrl}
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 0.85 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ duration: 0.5, ease: "easeInOut" }}
-            className="w-full h-full absolute inset-0 origin-center"
-          >
-            <GLBModelViewer 
-              modelUrl={modelUrl} 
-              height="100%" 
-              showControls={false} 
-            />
-          </motion.div>
-        ) : (
-          <motion.div 
-            key="fallback"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
-            className="w-full h-full absolute inset-0"
-          >
-            <Canvas
-              shadows
-              dpr={[1, 1.5]}
-              onCreated={handleCreated}
-              gl={{
-                antialias: true,
-                powerPreference: "default",
-                failIfMajorPerformanceCaveat: false,
-              }}
-            >
-              <ContextLossHandler />
-              <PerspectiveCamera makeDefault position={[0, 2.5, 5]} fov={45} />
-              <OrbitControls
-                enablePan={false}
-                minDistance={2.5}
-                maxDistance={8}
-                minPolarAngle={Math.PI / 4}
-                maxPolarAngle={Math.PI / 2 + 0.1}
-                autoRotate={false} 
-              />
+      {/* 3D Model Viewer or Fallback inside a single WebGL Context */}
+      <motion.div 
+        key="canvas-container"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="w-full h-full absolute inset-0"
+      >
+        <Canvas
+          shadows
+          dpr={[1, 1.5]}
+          onCreated={handleCreated}
+          gl={{
+            antialias: true,
+            powerPreference: "default",
+            failIfMajorPerformanceCaveat: false,
+          }}
+        >
+          <ContextLossHandler />
+          <PerspectiveCamera makeDefault position={[0, 2.5, 5]} fov={45} />
+          <OrbitControls
+            enablePan={false}
+            minDistance={2.5}
+            maxDistance={8}
+            minPolarAngle={Math.PI / 4}
+            maxPolarAngle={Math.PI / 2 + 0.1}
+            autoRotate={false} 
+          />
 
-              {/* Cinematic Lighting */}
-              <ambientLight intensity={1.2} />
-              <directionalLight
-                position={[5, 10, 5]}
-                intensity={1.5}
-                castShadow
-                shadow-mapSize-width={1024}
-                shadow-mapSize-height={1024}
-                shadow-bias={-0.0001}
-              />
-              <spotLight 
-                position={[-5, 5, -5]} 
-                intensity={1} 
-                color="#a855f7" 
-                distance={20}
-                angle={Math.PI / 4}
-                penumbra={1}
-              />
+          {/* Cinematic Lighting */}
+          <ambientLight intensity={1.2} />
+          <directionalLight
+            position={[5, 10, 5]}
+            intensity={1.5}
+            castShadow
+            shadow-mapSize-width={1024}
+            shadow-mapSize-height={1024}
+            shadow-bias={-0.0001}
+          />
+          <spotLight 
+            position={[-5, 5, -5]} 
+            intensity={1} 
+            color="#a855f7" 
+            distance={20}
+            angle={Math.PI / 4}
+            penumbra={1}
+          />
 
-              <PrimitiveDish position={[0, 0, 0]} />
+          <AnimatePresence mode="wait">
+            {modelUrl ? (
+              <GLBDish key={modelUrl} url={modelUrl} />
+            ) : (
+              <PrimitiveDish key="fallback" position={[0, 0, 0]} />
+            )}
+          </AnimatePresence>
 
-              {/* Contact shadows for realistic grounding */}
-              <ContactShadows
-                position={[0, -0.6, 0]}
-                opacity={0.6}
-                scale={15}
-                blur={2.5}
-                far={4}
-                color="#000000"
-              />
-            </Canvas>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          {/* Contact shadows for realistic grounding */}
+          <ContactShadows
+            position={[0, -0.6, 0]}
+            opacity={0.6}
+            scale={15}
+            blur={2.5}
+            far={4}
+            color="#000000"
+          />
+        </Canvas>
+      </motion.div>
 
       {/* Cinematic Vignette Overlay (Lightened so it doesn't ruin the 3D model textures) */}
       <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_40px_rgba(0,0,0,0.1)] rounded-3xl" />
