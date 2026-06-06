@@ -6,8 +6,7 @@ import { useState, useEffect } from "react";
 
 import { useOrders } from "@/hooks/useOrders";
 import { useAuth } from "@/hooks/useAuth";
-
-const TARGET_PREP_TIME = 20; // minutes
+import { getTargetPrepTime } from "@/lib/utils";
 
 const statusConfig = {
   pending: {
@@ -88,7 +87,8 @@ const KitchenTrackPage = () => {
         .map((order) => {
           const createdAt = new Date(order.createdAt);
           const elapsedMinutes = (currentNow.getTime() - createdAt.getTime()) / 60000;
-          const estimatedTime = Math.max(0, Math.round(TARGET_PREP_TIME - elapsedMinutes));
+          const targetTime = getTargetPrepTime(order.orderId);
+          const estimatedTime = Math.max(0, Math.round(targetTime - elapsedMinutes));
 
           // Map status to progress percentage
           let progress = 25;
