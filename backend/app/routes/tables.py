@@ -1,258 +1,219 @@
 """
-Table Session Routes — staff-only (with dev-only customer bootstrap).
+Task Management Routes.
 
-Sessions are the foundation of customer trust: only floor staff can open or
-close one. When a session is opened, a short-lived signed CUSTOMER TICKET
-(JWT, audience=customer) is returned alongside the raw session_id. The
-customer's device uses the ticket — never the raw session_id — for all
-downstream calls (orders, voice, table reads).
-
-The /dev-session endpoint is mounted ONLY when ENV != production so the
-customer-side demo can self-bootstrap a ticket without staff intervention.
+Hardening:
+  • RBAC on every endpoint.
+  • Status transitions follow an explicit state machine + CAS.
+  • Only the assignee or a manager+ may transition a task.
+  • Persisted timestamps go through app.util.utcnow() (timezone-aware).
 """
 import uuid
+from datetime import datetime
+from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
-from app.config import settings
+
 from app.database import get_database
-from app.models.table import TableSessionCreate
-from app.routes.auth import (
-    create_customer_ticket,
-    require_customer_ticket,
-    require_roles,
-)
+from app.models.task import TaskCreate, TaskStatus, TaskStatusUpdate
+from app.routes.auth import VALID_ROLES, require_roles
 from app.util import utcnow
 from app.websockets.kitchen import manager
 
-router = APIRouter(prefix="/api/tables", tags=["Tables"])
+router = APIRouter(prefix="/api/tasks", tags=["Tasks"])
 
-# ─── Staff endpoints ──────────────────────────────────────────────────────
+# State machine: pending → in_progress|completed → completed | cancelled
+TASK_TRANSITIONS: dict[str, set[str]] = {
+    TaskStatus.PENDING.value:     {TaskStatus.IN_PROGRESS.value, TaskStatus.COMPLETED.value, TaskStatus.CANCELLED.value},
+    TaskStatus.IN_PROGRESS.value: {TaskStatus.COMPLETED.value,   TaskStatus.CANCELLED.value},
+    TaskStatus.COMPLETED.value:   set(),
+    TaskStatus.CANCELLED.value:   set(),
+}
 
-@router.post("/session", status_code=201)
-async def create_session(
-    session: TableSessionCreate,
-    actor: dict = Depends(require_roles("server", "manager", "admin")),
+ASSIGNABLE_ROLES = {"server", "cleaner", "kitchen", "manager", "admin"}
+
+def _generate_task_id() -> str:
+    return f"TSK-{uuid.uuid4().hex[:8].upper()}"
+
+def _serialize(task: dict) -> dict:
+    task["_id"] = str(task["_id"])
+    for field in ("created_at", "updated_at"):
+        if isinstance(task.get(field), datetime):
+            task[field] = task[field].isoformat() + "Z"
+    return task
+
+# ─── Reads (any staff role) ──────────────────────────────────────────────
+
+@router.get("")
+async def list_tasks(
+    role: str | None = None,
+    status_filter: str | None = None,
+    assigned_to: str | None = None,
+    table_number: int | None = None,
+    actor: dict = Depends(require_roles(*ASSIGNABLE_ROLES)),
 ):
-    """Open a new dining session for a table.
-
-    Atomically closes any prior active session for the same table, then opens
-    a new one and returns BOTH the session_id (server-internal) and a signed
-    customer_ticket (handed to the customer)."""
+    """List tasks (filterable). Non-managers only see their own tasks."""
     db = get_database()
-    now = utcnow()
+    query: dict = {}
 
-    await db.table_sessions.update_many(
-        {"table_number": session.table_number, "is_active": True},
-        {"$set": {"is_active": False, "ended_at": now, "ended_by": actor["username"]}},
-    )
+    if role:
+        if role not in VALID_ROLES:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                                f"Invalid role. Valid: {sorted(VALID_ROLES)}")
+        query["role"] = role
+    if status_filter:
+        if status_filter not in {s.value for s in TaskStatus}:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid status filter")
+        query["status"] = status_filter
+    if assigned_to:
+        query["assigned_to"] = assigned_to
+    if table_number is not None:
+        query["table_number"] = table_number
 
-    session_id = f"SES-{uuid.uuid4().hex[:12].upper()}"
-    session_dict = {
-        "table_number": session.table_number,
-        "session_id": session_id,
-        "is_active": True,
-        "language": session.language,
-        "created_at": now,
-        "created_by": actor["username"],
-        "ended_at": None,
-    }
+    # Scope: a non-manager can only see their own tasks or unassigned tasks for their role.
+    if actor["role"] not in {"manager", "admin"}:
+        if "assigned_to" in query:
+            del query["assigned_to"]
+        query["$or"] = [
+            {"assigned_to": actor["username"]},
+            {"assigned_to": "unassigned", "role": actor["role"]}
+        ]
 
-    result = await db.table_sessions.insert_one(session_dict)
-    session_dict["_id"] = str(result.inserted_id)
+    tasks = []
+    cursor = db.tasks.find(query).sort("created_at", -1)
+    async for task in cursor:
+        tasks.append(_serialize(task))
+    return {"tasks": tasks, "total": len(tasks)}
 
-    customer_ticket = create_customer_ticket(
-        table_number=session.table_number,
-        session_id=session_id,
-    )
+# ─── Creation (manager/admin) ────────────────────────────────────────────
 
-    await manager.broadcast_to_kitchen({"type": "table_update", "data": session_dict})
-
-    return {
-        **session_dict,
-        "customer_ticket": customer_ticket,
-        "ticket_type": "bearer",
-    }
-
-
-@router.get("/me/session")
-async def get_my_session(
-    ticket: dict = Depends(require_customer_ticket),
+@router.post("", status_code=201)
+async def create_task(
+    task: TaskCreate,
+    actor: dict = Depends(require_roles("manager", "admin")),
 ):
-    """Customer self-service: confirm the ticket maps to a still-live session."""
+    if task.role not in VALID_ROLES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            f"Invalid task.role. Valid: {sorted(VALID_ROLES)}")
+
     db = get_database()
-    sess = await db.table_sessions.find_one({
-        "session_id": ticket["session_id"],
-        "table_number": ticket["table_number"],
-        "is_active": True,
-    })
-    if not sess:
-        raise HTTPException(status.HTTP_410_GONE, "Session is no longer active")
-    
-    sess["_id"] = str(sess["_id"])
-    return {
-        "table_number": ticket["table_number"],
-        "session_id": ticket["session_id"],
-        "language": sess.get("language", "en"),
-        "is_active": True,
-    }
-
-
-@router.get("/{table_number}/session")
-async def get_active_session(
-    table_number: int,
-    _: dict = Depends(require_roles("server", "manager", "admin", "kitchen")),
-):
-    """Look up the active session for a table (staff view)."""
-    db = get_database()
-    session = await db.table_sessions.find_one(
-        {"table_number": table_number, "is_active": True}
-    )
-    if not session:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No active session for this table")
-    
-    session["_id"] = str(session["_id"])
-    return session
-
-
-@router.post("/{table_number}/end-session")
-async def end_session(
-    table_number: int,
-    actor: dict = Depends(require_roles("server", "manager", "admin", "cleaner")),
-):
-    """Close the active session for a table."""
-    db = get_database()
-    
-    # 1. Look up the active session
-    session = await db.table_sessions.find_one({"table_number": table_number, "is_active": True})
-    if not session:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No active session to end")
-
-    # 2. Check for active orders
-    active_orders_count = await db.orders.count_documents({
-        "session_id": session["session_id"],
-        "status": {"$nin": ["completed", "cancelled"]}
-    })
-    if active_orders_count > 0:
+    assignee = await db.users.find_one({"username": task.assigned_to, "is_active": True})
+    if not assignee:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            f"Assignee '{task.assigned_to}' not found or inactive")
+    if assignee["role"] != task.role:
         raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, 
-            "Cannot end session: Orders are still in progress for this table."
+            status.HTTP_400_BAD_REQUEST,
+            f"Assignee '{task.assigned_to}' has role '{assignee['role']}' "
+            f"but task targets role '{task.role}'",
         )
 
-    # 3. Proceed to end session
-    result = await db.table_sessions.update_many(
-        {"table_number": table_number, "is_active": True},
-        {"$set": {"is_active": False, "ended_at": utcnow(), "ended_by": actor["username"]}},
+    now = utcnow()
+    task_dict = {
+        "task_id": _generate_task_id(),
+        "title": task.title,
+        "description": task.description,
+        "assigned_to": task.assigned_to,
+        "role": task.role,
+        "priority": task.priority.value,
+        "status": TaskStatus.PENDING.value,
+        "table_number": task.table_number,
+        "due_time": task.due_time,
+        "notes": None,
+        "created_at": now,
+        "updated_at": now,
+        "created_by": actor["username"],
+    }
+
+    result = await db.tasks.insert_one(task_dict)
+    task_dict["_id"] = str(result.inserted_id)
+    serialized = _serialize(task_dict)
+    await manager.broadcast_to_kitchen({"type": "task_update", "data": serialized})
+    return serialized
+
+# ─── Per-task ────────────────────────────────────────────────────────────
+
+@router.get("/{task_id}")
+async def get_task(
+    task_id: str,
+    actor: dict = Depends(require_roles(*ASSIGNABLE_ROLES)),
+):
+    db = get_database()
+    task = await db.tasks.find_one({"task_id": task_id})
+    if not task and ObjectId.is_valid(task_id):
+        task = await db.tasks.find_one({"_id": ObjectId(task_id)})
+    if not task:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Task not found")
+
+    if actor["role"] not in {"manager", "admin"} and task.get("assigned_to") != actor["username"]:
+        raise HTTPException(status.HTTP_403_FORBIDDEN,
+                            "You can only view tasks assigned to you")
+    return _serialize(task)
+
+@router.patch("/{task_id}/status")
+async def update_task_status(
+    task_id: str,
+    update: TaskStatusUpdate,
+    actor: dict = Depends(require_roles(*ASSIGNABLE_ROLES)),
+):
+    """Transition a task status."""
+    db = get_database()
+    task = await db.tasks.find_one({"task_id": task_id})
+    if not task and ObjectId.is_valid(task_id):
+        task = await db.tasks.find_one({"_id": ObjectId(task_id)})
+    if not task:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Task not found")
+
+    if actor["role"] not in {"manager", "admin"}:
+        is_assignee = task.get("assigned_to") == actor["username"]
+        is_unassigned_match = task.get("assigned_to") == "unassigned" and task.get("role") == actor["role"]
+        if not is_assignee and not is_unassigned_match:
+            raise HTTPException(status.HTTP_403_FORBIDDEN,
+                                "Only the assignee, a matching role (if unassigned), or a manager+ may update this task")
+
+    current = task["status"]
+    new_status = update.status.value
+
+    if new_status == current:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Task is already in that status")
+
+    allowed = TASK_TRANSITIONS.get(current, set())
+    if new_status not in allowed:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Invalid transition '{current}' → '{new_status}'. Allowed: {sorted(allowed)}",
+        )
+
+    now = utcnow()
+    set_fields = {
+        "status": new_status,
+        "updated_at": now,
+        "status_updated_by": actor["username"],
+    }
+    if update.notes is not None:
+        set_fields["notes"] = update.notes[:500]
+
+    result = await db.tasks.update_one(
+        {"_id": task["_id"], "status": current},
+        {"$set": set_fields},
     )
     if result.modified_count == 0:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No active session to end")
-    
-    await manager.broadcast_to_kitchen({"type": "table_update", "data": {"table_number": table_number, "is_active": False}})
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "Task changed concurrently; refresh and retry")
 
-    return {
-        "message": f"Session ended for table {table_number}",
-        "closed_count": result.modified_count
-    }
+    updated = await db.tasks.find_one({"_id": task["_id"]})
+    serialized = _serialize(updated)
+    await manager.broadcast_to_kitchen({"type": "task_update", "data": serialized})
+    return serialized
 
-
-@router.get("/active")
-async def get_all_active_tables(
-    _: dict = Depends(require_roles("server", "manager", "admin", "kitchen", "cleaner")),
+@router.delete("/{task_id}")
+async def delete_task(
+    task_id: str,
+    _: dict = Depends(require_roles("manager", "admin")),
 ):
-    """List all currently-active table sessions (staff view)."""
     db = get_database()
-    tables = []
-    cursor = db.table_sessions.find({"is_active": True}).sort("table_number", 1)
-    async for session in cursor:
-        session["_id"] = str(session["_id"])
-        
-        # Check if this session has any incomplete orders
-        active_orders_count = await db.orders.count_documents({
-            "session_id": session["session_id"],
-            "status": {"$nin": ["completed", "cancelled"]}
-        })
-        session["has_active_orders"] = active_orders_count > 0
-        
-        # Format dates as ISO 8601 strings with Z to fix timezone issues
-        for field in ("created_at", "updated_at", "started_at", "ended_at"):
-            if isinstance(session.get(field), datetime):
-                session[field] = session[field].isoformat() + "Z"
-        
-        tables.append(session)
-        
-    meta_cursor = db.table_meta.find({})
-    meta = {}
-    async for m in meta_cursor:
-        meta[m["table_number"]] = m["status"]
-        
-    return {"active_tables": tables, "meta": meta, "total": len(tables)}
-
-@router.post("/{table_number}/status")
-async def update_table_status(
-    table_number: int,
-    status: str,
-    _: dict = Depends(require_roles("server", "manager", "admin")),
-):
-    """Update static table status (e.g. reserved, unavailable, available)."""
-    db = get_database()
-    if status == "available":
-        await db.table_meta.delete_one({"table_number": table_number})
-    else:
-        await db.table_meta.update_one(
-            {"table_number": table_number},
-            {"$set": {"status": status}},
-            upsert=True
-        )
-    await manager.broadcast_to_kitchen({"type": "table_meta_update", "data": {"table_number": table_number, "status": status}})
-    return {"message": f"Table {table_number} status updated to {status}"}
-
-
-# ─── Dev-only customer bootstrap (no staff login required) ────────────────
-
-if not settings.is_production:
-
-    @router.post("/dev-session", status_code=201)
-    async def dev_create_session(language: str = "en"):
-        """DEV ONLY. Public endpoint to self-bootstrap a customer ticket by auto-allocating an available table."""
-        db = get_database()
-        now = utcnow()
-        
-        # Find all currently active tables
-        active_cursor = db.table_sessions.find({"is_active": True}, {"table_number": 1})
-        active_tables = set()
-        async for s in active_cursor:
-            active_tables.add(s["table_number"])
-            
-        # Find an available table between 1 and 20
-        available_table = None
-        for i in range(1, 21):
-            if i not in active_tables:
-                available_table = i
-                break
-                
-        if not available_table:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "No tables are currently available")
-            
-        table_number = available_table
-
-        session_id = f"SES-{uuid.uuid4().hex[:12].upper()}"
-        session_dict = {
-            "table_number": table_number,
-            "session_id": session_id,
-            "is_active": True,
-            "language": language,
-            "created_at": now,
-            "created_by": "dev-session",
-            "ended_at": None,
-        }
-        result = await db.table_sessions.insert_one(session_dict)
-        session_dict["_id"] = str(result.inserted_id)
-
-        await manager.broadcast_to_kitchen({"type": "table_update", "data": session_dict})
-
-        return {
-            **session_dict,
-            "customer_ticket": create_customer_ticket(table_number, session_id),
-            "ticket_type": "bearer",
-        }
-
-
-# ─── Customer endpoint ────────────────────────────────────────────────────
+    result = await db.tasks.delete_one({"task_id": task_id})
+    if result.deleted_count == 0 and ObjectId.is_valid(task_id):
+        result = await db.tasks.delete_one({"_id": ObjectId(task_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Task not found")
+    await manager.broadcast_to_kitchen({"type": "task_delete", "data": {"task_id": task_id}})
+    return {"message": f"Task '{task_id}' deleted successfully"}
