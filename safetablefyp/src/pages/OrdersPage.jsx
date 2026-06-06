@@ -23,7 +23,7 @@ const statusConfig = {
   cancelled: { label: "Cancelled", icon: Utensils,     color: "bg-destructive/20 text-destructive-foreground border-destructive/30", step: 0 },
 };
 
-const TARGET_PREP_TIME = 20;
+import { getTargetPrepTime } from "@/lib/utils";
 
 const OrdersPage = () => {
   const { tableNumber } = useCustomerSession();
@@ -92,8 +92,9 @@ const OrdersPage = () => {
     rawActiveOrders.map((order) => {
       const createdAt = new Date(order.createdAt);
       const elapsed = (now.getTime() - createdAt.getTime()) / 60000;
-      const progress = Math.min((elapsed / TARGET_PREP_TIME) * 100, 100);
-      const estimatedTime = Math.max(0, Math.round(TARGET_PREP_TIME - elapsed));
+      const targetTime = getTargetPrepTime(order.orderId);
+      const progress = Math.min((elapsed / targetTime) * 100, 100);
+      const estimatedTime = Math.max(0, Math.round(targetTime - elapsed));
       return { ...order, progress, estimatedTime };
     }),
     [rawActiveOrders, now],
