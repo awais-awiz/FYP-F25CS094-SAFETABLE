@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useQuery } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
 import GLBModelViewer from "@/components/GLBModelViewer";
+import { useOrders } from "@/hooks/useOrders";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import dishImage from "@/assets/dish-steak.jpg";
 
@@ -120,8 +121,9 @@ const speakText = async (text, lang = "en", audioPlayerRef, onEnd = null) => {
 
 const GlobalVoiceAssistant = () => {
   const { toast } = useToast();
+  const { items, addItem, removeItem, clearCart, updateQuantity } = useCart();
+  const { addOrder } = useOrders();
   const { tableNumber, hasTicket, sessionJustStarted } = useCustomerSession();
-  const { addItem } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -445,20 +447,36 @@ const GlobalVoiceAssistant = () => {
         }
 
         if (data.order_placed || commands.api_trigger === "SUBMIT_ORDER") {
-          setOrderStatus(`Order Created: ${data.order_id}`);
-          setCurrentOrderId(data.order_id);
-          try {
-            const intent = await safepayApi.generateQR({
-              order_id: data.order_id,
-              table_number: tableNumber,
-            });
-            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(intent.checkout_url)}`;
-            setPaymentQR(qrUrl);
-            setPaymentAmount(intent.amount || 0);
-            setCheckoutStep("waiting_payment");
-            setIsChatOpen(false); // Hide chat to show payment dialog clearly
-          } catch (err) {
-            toast({ title: "Payment Init failed", description: err.message, variant: "destructive" });
+          let orderIdToPay = data.order_id;
+          
+          // If the AI triggered SUBMIT_ORDER but order hasn't been created yet, use the frontend cart
+          if (!orderIdToPay && items.length > 0) {
+            try {
+              const order = await addOrder(items);
+              orderIdToPay = order.orderId || order.order_id;
+            } catch (err) {
+              toast({ title: "Order failed", description: err.message, variant: "destructive" });
+            }
+          }
+
+          if (orderIdToPay) {
+            setOrderStatus(`Order Created: ${orderIdToPay}`);
+            setCurrentOrderId(orderIdToPay);
+            try {
+              const intent = await safepayApi.generateQR({
+                order_id: orderIdToPay,
+                table_number: tableNumber,
+              });
+              const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(intent.checkout_url)}`;
+              setPaymentQR(qrUrl);
+              setPaymentAmount(intent.amount || 0);
+              setCheckoutStep("waiting_payment");
+              setIsChatOpen(false); // Hide chat to show payment dialog clearly
+            } catch (err) {
+              toast({ title: "Payment Init failed", description: err.message, variant: "destructive" });
+            }
+          } else {
+            toast({ title: "Empty Cart", description: "You have no items in your cart to place an order.", variant: "destructive" });
           }
         }
 
@@ -945,3 +963,4 @@ const GlobalVoiceAssistant = () => {
 };
 
 export default GlobalVoiceAssistant;
+
