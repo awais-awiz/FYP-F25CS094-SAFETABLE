@@ -59,7 +59,9 @@ def _parse_json_payload(content: str) -> Optional[Dict[str, Any]]:
 
 
 async def _call_groq(messages: List[Dict[str, str]], temperature: float, max_tokens: int) -> str:
-    if not settings.GROQ_API_KEY:
+    # Use Together AI key if it exists and the URL points to Together AI, otherwise fallback to Groq key
+    api_key = settings.TOGETHER_API_KEY if "together" in settings.GROQ_API_URL else settings.GROQ_API_KEY
+    if not api_key:
         return ""
         
     payload = {
@@ -74,7 +76,7 @@ async def _call_groq(messages: List[Dict[str, str]], temperature: float, max_tok
         response = await client.post(
             settings.GROQ_API_URL,
             headers={
-                "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+                "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             },
             json=payload,
