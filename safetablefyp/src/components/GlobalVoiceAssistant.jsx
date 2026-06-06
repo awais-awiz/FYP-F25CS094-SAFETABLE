@@ -836,10 +836,10 @@ const GlobalVoiceAssistant = () => {
                 {/* AR QR Code Scanner (Hidden on mobile) */}
                 {activeModels[activeModelIndex]?.model_3d_url && (
                   <div className="hidden md:flex items-center gap-3 bg-white/5 pr-4 pl-2 py-2 rounded-2xl border border-white/10">
-                    <div className="bg-white p-1.5 rounded-xl shadow-lg">
+                    <div className="bg-white p-2 rounded-xl shadow-lg">
                       <QRCodeSVG 
                         value={`${window.location.origin}/ar?model=${encodeURIComponent(activeModels[activeModelIndex].model_3d_url)}`} 
-                        size={48} 
+                        size={96} 
                         level="L"
                         includeMargin={false}
                       />
