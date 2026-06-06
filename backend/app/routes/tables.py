@@ -171,6 +171,11 @@ async def get_all_active_tables(
         })
         session["has_active_orders"] = active_orders_count > 0
         
+        # Format dates as ISO 8601 strings with Z to fix timezone issues
+        for field in ("created_at", "updated_at", "started_at", "ended_at"):
+            if isinstance(session.get(field), datetime):
+                session[field] = session[field].isoformat() + "Z"
+        
         tables.append(session)
         
     meta_cursor = db.table_meta.find({})
