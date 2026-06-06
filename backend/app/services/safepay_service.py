@@ -37,7 +37,7 @@ async def init_safepay_payment(amount_pkr: float, order_id: str) -> Dict[str, An
         checkout_url = (
             f"{SAFEPAY_API_BASE}/checkout?env={settings.SAFEPAY_ENVIRONMENT}"
             f"&beacon={token}&source=custom&order_id={order_id}"
-            f"&redirect_url={settings.FRONTEND_URL}/success&cancel_url={settings.FRONTEND_URL}/checkout"
+            f"&redirect_url={settings.FRONTEND_URL}/success&cancel_url={settings.FRONTEND_URL}/qr-payments"
         )
         
         return {
