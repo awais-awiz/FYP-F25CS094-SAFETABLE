@@ -233,12 +233,6 @@ const AdminDashboard = () => {
                 <span className="text-sm text-muted-foreground">Active Tables</span>
                 <span className="font-semibold">{stats.active_tables}</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Avg Rating</span>
-                <div className="flex items-center gap-1 font-semibold">
-                  <Sparkles className="w-3 h-3 text-amber-500" /> {stats.average_rating || "N/A"}
-                </div>
-              </div>
             </div>
           )}
         </Card>
