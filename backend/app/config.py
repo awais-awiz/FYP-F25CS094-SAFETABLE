@@ -20,10 +20,11 @@ class Settings(BaseSettings):
     )
     DATABASE_NAME: str = "safetable"
 
-    # Groq AI
+    # Groq AI & Together AI
     GROQ_API_KEY: str = ""
+    TOGETHER_API_KEY: str = ""
     GROQ_API_URL: str = "https://api.groq.com/openai/v1/chat/completions"
-    GROQ_MODEL: str = "llama-3.1-70b-versatile"
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
     GROQ_WHISPER_MODEL: str = "whisper-large-v3"
 
     # OpenAI (Whisper STT)
