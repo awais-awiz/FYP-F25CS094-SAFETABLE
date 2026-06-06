@@ -222,7 +222,7 @@ const AdminDashboard = () => {
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Today's Revenue</span>
                 <span className="text-lg font-bold text-green-500">
-                  ${Number(stats.total_revenue_today).toLocaleString()}
+                  RS {Number(stats.total_revenue_today).toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between items-center">
