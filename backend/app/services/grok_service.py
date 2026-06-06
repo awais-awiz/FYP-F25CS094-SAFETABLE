@@ -244,7 +244,7 @@ You MUST respond EXCLUSIVELY in the following JSON format. Do not include markdo
 {{
   "spoken_response": "The natural text to be spoken via Text-to-Speech.",
   "client_commands": {{
-    "route_to": "string (e.g., '/menu', '/kitchen-status', '/checkout', or 'STAY')",
+    "route_to": "string (e.g., '/menu', '/kitchen-status', '/qr-payments', or 'STAY')",
     "ui_action": "string (e.g., 'SHOW_3D_MODEL', 'SHOW_RECOMMENDATIONS', 'NONE')",
     "api_trigger": "string (e.g., 'FETCH_ORDER_STATUS', 'CALL_SERVICE', 'ADD_TO_CART', 'SUBMIT_ORDER', 'WAIT_AND_CHECK_IN', 'NONE')"
   }},
