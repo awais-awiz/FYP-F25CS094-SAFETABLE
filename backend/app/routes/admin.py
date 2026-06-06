@@ -28,7 +28,7 @@ async def get_dashboard_stats(_: dict = Depends(admin_manager_only)):
         {"created_at": {"$gte": today_start}}
     )
     active_orders = await db.orders.count_documents(
-        {"status": {"$nin": ["completed", "cancelled"]}}
+        {"status": {"$nin": ["completed", "cancelled"]}, "payment_status": "paid"}
     )
     completed_today = await db.orders.count_documents(
         {"status": "completed", "updated_at": {"$gte": today_start}}
@@ -36,7 +36,7 @@ async def get_dashboard_stats(_: dict = Depends(admin_manager_only)):
 
     # Revenue pipeline
     pipeline = [
-        {"$match": {"created_at": {"$gte": today_start}, "payment_status": "paid"}},
+        {"$match": {"created_at": {"$gte": today_start}, "status": {"$ne": "cancelled"}}},
         {"$group": {"_id": None, "total": {"$sum": "$total_price"}}},
     ]
     revenue_result = await db.orders.aggregate(pipeline).to_list(1)
