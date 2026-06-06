@@ -499,10 +499,10 @@ const MenuPage = () => {
             </div>
             {preview3dItem?.model_3d_url && (
               <div className="hidden md:flex items-center gap-3 bg-white/5 pr-4 pl-2 py-2 rounded-2xl border border-white/10 mt-[-10px] mr-[-10px]">
-                <div className="bg-white p-1.5 rounded-xl shadow-lg">
+                <div className="bg-white p-2 rounded-xl shadow-lg">
                   <QRCodeSVG 
                     value={`${window.location.origin}/ar?model=${encodeURIComponent(preview3dItem.model_3d_url)}`} 
-                    size={48} 
+                    size={96} 
                     level="L"
                     includeMargin={false}
                   />
