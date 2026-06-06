@@ -38,26 +38,6 @@ const SERVICE_TYPES = [
     glow: "rgba(16,185,129,0.4)",
     emoji: "🧹",
   },
-  {
-    id: "napkins",
-    icon: Coffee,
-    label: "Extra Napkins",
-    desc: "Need extra napkins or condiments? Just ask!",
-    gradient: "from-pink-500 to-rose-600",
-    shadow: "shadow-pink-500/40",
-    glow: "rgba(244,63,94,0.4)",
-    emoji: "🍃",
-  },
-  {
-    id: "emergency",
-    icon: AlertCircle,
-    label: "Emergency",
-    desc: "Urgent matter? This will immediately alert the entire staff.",
-    gradient: "from-red-500 to-rose-700",
-    shadow: "shadow-red-500/40",
-    glow: "rgba(239,68,68,0.5)",
-    emoji: "🚨",
-  },
 ];
 
 const InstantServicePage = () => {
