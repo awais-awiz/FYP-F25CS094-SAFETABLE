@@ -52,8 +52,14 @@ def _generate_order_id() -> str:
     return f"ORD-{uuid.uuid4().hex[:4].upper()}"
 
 def _stringify_id(doc: dict) -> dict:
-    if doc and "_id" in doc:
+    if not doc:
+        return doc
+    if "_id" in doc:
         doc["_id"] = str(doc["_id"])
+    if "created_at" in doc and hasattr(doc["created_at"], "isoformat"):
+        doc["created_at"] = doc["created_at"].isoformat() + "Z"
+    if "updated_at" in doc and hasattr(doc["updated_at"], "isoformat"):
+        doc["updated_at"] = doc["updated_at"].isoformat() + "Z"
     return doc
 
 def _serialize_dt(value) -> str:
