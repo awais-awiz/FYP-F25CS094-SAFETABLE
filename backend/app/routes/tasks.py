@@ -20,9 +20,9 @@ from app.websockets.kitchen import manager
 
 router = APIRouter(prefix="/api/tasks", tags=["Tasks"])
 
-# State machine: pending → in_progress → completed | cancelled
+# State machine: pending → in_progress|completed → completed | cancelled
 TASK_TRANSITIONS: dict[str, set[str]] = {
-    TaskStatus.PENDING.value:     {TaskStatus.IN_PROGRESS.value, TaskStatus.CANCELLED.value},
+    TaskStatus.PENDING.value:     {TaskStatus.IN_PROGRESS.value, TaskStatus.COMPLETED.value, TaskStatus.CANCELLED.value},
     TaskStatus.IN_PROGRESS.value: {TaskStatus.COMPLETED.value,   TaskStatus.CANCELLED.value},
     TaskStatus.COMPLETED.value:   set(),
     TaskStatus.CANCELLED.value:   set(),
