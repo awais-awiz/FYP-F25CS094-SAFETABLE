@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     TOGETHER_API_KEY: str = ""
     GROQ_API_URL: str = "https://api.groq.com/openai/v1/chat/completions"
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
-    GROQ_WHISPER_MODEL: str = "whisper-large-v3"
+    GROQ_WHISPER_MODEL: str = "whisper-large-v3-turbo"
 
     # OpenAI (Whisper STT)
     OPENAI_API_KEY: str = ""
